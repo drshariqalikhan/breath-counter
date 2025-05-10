@@ -99,10 +99,10 @@
             <strong>Instructions:</strong>
             <ol>
                 <li>Ensure this page is served over HTTPS.</li>
-                <li>Tap "Start Monitoring".</li>
+                <li>Tap "Start Monitoring". This will also attempt to lock screen to portrait.</li>
                 <li>Grant permission to access motion sensors.</li>
                 <li>Lie down and place your iPhone flat on your abdomen.</li>
-                <li>Breathe normally.</li>
+                <li>Breathe normally. You should hear a beep on inhalation.</li>
             </ol>
         </div>
 
@@ -140,6 +140,8 @@
         const MIN_BREATH_INTERVAL_MS = 1000; // Minimum time between detected breaths (anti-jitter)
         let lastBreathEventTime = 0;
 
+        let audioContext = null;
+
         function logMessage(message, type = 'INFO') {
             const now = new Date();
             const timeString = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
@@ -147,9 +149,81 @@
             logArea.scrollTop = logArea.scrollHeight; // Auto-scroll
         }
 
+        async function lockScreenOrientation() {
+            try {
+                if (screen.orientation && typeof screen.orientation.lock === 'function') {
+                    await screen.orientation.lock('portrait-primary');
+                    logMessage('Screen orientation locked to portrait.');
+                } else {
+                    logMessage('Screen orientation lock API not fully supported.', 'WARN');
+                }
+            } catch (error) {
+                logMessage(`Could not lock screen orientation: ${error.message}`, 'WARN');
+                console.warn('Screen lock error:', error);
+            }
+        }
+
+        function initializeAudioContext() {
+            if (!audioContext) {
+                try {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    logMessage('AudioContext initialized.');
+                } catch (e) {
+                    logMessage('Web Audio API not supported or could not be initialized.', 'ERROR');
+                    console.error("Error creating AudioContext: ", e);
+                    audioContext = null; // Ensure it's null if failed
+                }
+            } else if (audioContext.state === 'suspended') {
+                audioContext.resume().then(() => {
+                    logMessage('AudioContext resumed.');
+                }).catch(e => {
+                    logMessage('Failed to resume AudioContext.', 'ERROR');
+                    console.error("Error resuming AudioContext: ", e);
+                });
+            }
+        }
+
+        function playBeep(duration = 0.1, frequency = 880, volume = 0.3) {
+            if (!audioContext || audioContext.state === 'closed') {
+                logMessage('AudioContext not available or closed. Cannot play beep.', 'WARN');
+                return;
+            }
+            if (audioContext.state === 'suspended') {
+                // Attempt to resume, though it might be too late if not tied to the initial user gesture
+                audioContext.resume().catch(e => logMessage('Could not resume AudioContext for beep.', 'WARN'));
+                // If still suspended, can't play
+                if (audioContext.state === 'suspended') {
+                    logMessage('AudioContext still suspended, beep skipped.', 'WARN');
+                    return;
+                }
+            }
+
+            try {
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+
+                gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+                gainNode.gain.linearRampToValueAtTime(volume, audioContext.currentTime + 0.01); // Quick attack
+                gainNode.gain.linearRampToValueAtTime(0, audioContext.currentTime + duration); // Decay
+
+                oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
+                oscillator.type = 'sine'; // 'sine', 'square', 'sawtooth', 'triangle'
+
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + duration);
+                // logMessage('Beep played.'); // Might be too noisy in the log
+            } catch (e) {
+                logMessage(`Error playing beep: ${e.message}`, 'ERROR');
+                console.error("Error playing beep:", e);
+            }
+        }
+
+
         function requestMotionAccess() {
             if (window.DeviceMotionEvent && typeof DeviceMotionEvent.requestPermission === 'function') {
-                // iOS 13+
                 logMessage('Requesting motion sensor permission (iOS).');
                 DeviceMotionEvent.requestPermission()
                     .then(permissionState => {
@@ -169,7 +243,6 @@
                         startButton.disabled = false;
                     });
             } else if (window.DeviceMotionEvent) {
-                // Non-iOS or older iOS where permission is not explicitly needed or handled differently
                 logMessage('Motion sensors available (non-iOS or older iOS). Starting monitoring.');
                 startMonitoring();
             } else {
@@ -182,7 +255,7 @@
         function startMonitoring() {
             logMessage('Starting motion monitoring...');
             window.addEventListener('devicemotion', handleMotionEvent);
-            window.addEventListener('deviceorientation', handleOrientationEvent); // For gyroscope beta
+            window.addEventListener('deviceorientation', handleOrientationEvent);
             isMonitoring = true;
             startButton.textContent = 'Stop Monitoring';
             startButton.disabled = false;
@@ -202,11 +275,16 @@
             zAccelDisplay.textContent = '--';
             betaGyroDisplay.textContent = '--';
             startButton.disabled = false;
+            // Optional: Unlock orientation when stopping. For this app, keeping it locked might be desired.
+            // if (screen.orientation && typeof screen.orientation.unlock === 'function') {
+            //     screen.orientation.unlock();
+            //     logMessage('Screen orientation unlocked.');
+            // }
         }
 
         function handleMotionEvent(event) {
             if (!event.accelerationIncludingGravity || event.accelerationIncludingGravity.z === null) {
-                logMessage('Accelerometer data not available.', 'WARN');
+                // logMessage('Accelerometer data not available.', 'WARN'); // Can be noisy
                 return;
             }
 
@@ -222,12 +300,12 @@
             const deltaZ = currentZ - lastZ;
             const currentTime = Date.now();
 
-            // Basic breath detection logic (simplified)
             if (breathState === 'IDLE' || breathState === 'FALLING') {
                 if (deltaZ > MOVEMENT_THRESHOLD) {
                     breathState = 'RISING';
                     movementDisplay.textContent = 'Inhaling (Up)';
                     logMessage('Movement: Rising (Inhale detected)');
+                    playBeep(); // Play beep on inhalation
                 }
             } else if (breathState === 'RISING') {
                 if (deltaZ < -MOVEMENT_THRESHOLD) {
@@ -235,11 +313,10 @@
                     movementDisplay.textContent = 'Exhaling (Down)';
                     logMessage('Movement: Falling (Exhale detected)');
 
-                    // A "breath" is counted when we transition from rising to falling (peak of inhale)
                     if (currentTime - lastBreathEventTime > MIN_BREATH_INTERVAL_MS) {
                         breathTimestamps.push(currentTime);
                         if (breathTimestamps.length > MAX_TIMESTAMPS) {
-                            breathTimestamps.shift(); // Keep only the last MAX_TIMESTAMPS
+                            breathTimestamps.shift();
                         }
                         lastBreathEventTime = currentTime;
                         calculateBreathRate();
@@ -250,17 +327,12 @@
         }
         
         function handleOrientationEvent(event) {
-            // Gyroscope data: event.alpha, event.beta, event.gamma
-            // Beta is front-to-back tilt.
             if (event.beta !== null) {
                  betaGyroDisplay.textContent = event.beta.toFixed(2);
             } else {
                 betaGyroDisplay.textContent = 'N/A';
             }
-            // Note: For this app, we're primarily using accelerometer for simplicity.
-            // Gyro could be used for more sophisticated tilt detection.
         }
-
 
         function calculateBreathRate() {
             if (breathTimestamps.length < 2) {
@@ -282,22 +354,21 @@
             }
         }
 
-        startButton.addEventListener('click', () => {
-            startButton.disabled = true; // Prevent double clicks
+        startButton.addEventListener('click', async () => {
+            startButton.disabled = true; 
             if (!isMonitoring) {
-                // Check for HTTPS (critical for iOS permissions)
                 if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
                      logMessage('CRITICAL: Page not served over HTTPS. Sensor access may fail on iOS.', 'ERROR');
                      alert('For sensor access on iOS, this page MUST be served over HTTPS.');
-                     // We can still try, but it will likely fail on iOS.
                 }
+                initializeAudioContext(); // Initialize or resume AudioContext on user gesture
+                await lockScreenOrientation(); // Attempt to lock screen orientation
                 requestMotionAccess();
             } else {
                 stopMonitoring();
             }
         });
 
-        // Initial log message
         logMessage('App initialized. Ready for monitoring.');
         if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
             logMessage('WARNING: Page is not served over HTTPS. Sensor access might be restricted, especially on iOS.', 'WARN');
