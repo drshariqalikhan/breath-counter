@@ -3,53 +3,49 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Adaptive Breath Monitor with Chart</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script> <!-- Include Chart.js -->
+    <title>Calibrated Breath Monitor with Chart</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 15px; background-color: #f4f4f4; color: #333; display: flex; flex-direction: column; align-items: center; text-align: center; }
         .container { background-color: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); width: 100%; max-width: 420px; }
-        h1 { color: #007aff; margin-bottom: 10px; font-size: 24px; }
-        button { background-color: #007aff; color: white; border: none; padding: 10px 18px; font-size: 15px; border-radius: 6px; cursor: pointer; transition: background-color 0.2s; margin-bottom: 8px; margin-right: 5px;}
+        h1 { color: #007aff; margin-bottom: 10px; font-size: 22px; }
+        button { background-color: #007aff; color: white; border: none; padding: 10px 15px; font-size: 14px; border-radius: 6px; cursor: pointer; transition: background-color 0.2s; margin-bottom: 8px; margin-right: 5px;}
         button:hover { background-color: #005ecb; }
         button:disabled { background-color: #cccccc; cursor: not-allowed; }
-        #collectDataButton { background-color: #34c759; }
-        #collectDataButton:hover { background-color: #2ca349; }
+        #calibrateZeroButton { background-color: #ff9500; }
+        #calibrateZeroButton:hover { background-color: #e08500; }
         .data-display { margin-bottom: 10px; padding: 8px; background-color: #e9e9eb; border-radius: 4px; }
-        .data-display p { margin: 4px 0; font-size: 15px; }
+        .data-display p { margin: 4px 0; font-size: 14px; }
         .data-display span { font-weight: bold; color: #333; }
-        #breathRateDisplay { font-size: 22px; color: #28a745; }
-        #movementDisplay { color: #17a2b8; font-weight: bold; font-size: 16px; }
-        .chart-container {
-            width: 100%;
-            max-width: 380px; /* Ensure it fits well */
-            margin: 10px auto; /* Center it */
-            background-color: #f9f9f9;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            padding: 5px;
-        }
-        #logArea { width: 100%; height: 100px; border: 1px solid #ccc; border-radius: 4px; padding: 8px; font-family: monospace; font-size: 10px; overflow-y: scroll; box-sizing: border-box; background-color: #f9f9f9; margin-top:5px;}
+        #breathRateDisplay { font-size: 20px; color: #28a745; }
+        #movementDisplay { color: #17a2b8; font-weight: bold; font-size: 15px; }
+        .chart-container { width: 100%; max-width: 380px; margin: 10px auto; background-color: #f9f9f9; border: 1px solid #ddd; border-radius: 4px; padding: 5px; }
+        #logArea { width: 100%; height: 80px; border: 1px solid #ccc; border-radius: 4px; padding: 8px; font-family: monospace; font-size: 10px; overflow-y: scroll; box-sizing: border-box; background-color: #f9f9f9; margin-top:5px;}
         .instructions { font-size: 12px; color: #555; margin-bottom: 8px; text-align: left; padding: 8px; background-color: #fff3cd; border: 1px solid #ffeeba; border-radius: 4px; }
         .instructions ul {padding-left: 18px; margin-top: 4px;}
         .instructions li {margin-bottom: 2px;}
-        .important-note { font-size: 11px; color: #555; margin-top:4px; }
+        .slider-container { margin: 10px 0; padding: 8px; background-color: #e9e9eb; border-radius: 4px; }
+        .slider-container label { font-size: 13px; display: block; margin-bottom: 5px; }
+        .slider-container input[type="range"] { width: 80%; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Adaptive Breath Monitor</h1>
+        <h1>Calibrated Breath Monitor</h1>
         <div class="instructions">
             <strong>Phone Placement:</strong> TOP edge points to your LEFT side on tummy.
             <strong>Operation:</strong>
             <ol>
-                <li>Tap "Start System" & grant permissions.</li>
-                <li>Tap "Start 1-Min Data Collection" and breathe normally.</li>
-                <li>After analysis, breathing will be monitored on the chart.</li>
+                <li>Tap "Prepare System" & grant permissions.</li>
+                <li>Tap "Calibrate Zero (30s)" and breathe normally / rest still.</li>
+                <li>Adjust Sensitivity slider if needed.</li>
+                <li>Tap "Start Monitoring" to count breaths.</li>
             </ol>
         </div>
 
-        <button id="startButton">Start System</button>
-        <button id="collectDataButton" style="display: none;">Start 1-Min Data Collection</button>
+        <button id="prepareSystemButton">Prepare System</button>
+        <button id="calibrateZeroButton" style="display: none;">Calibrate Zero (30s)</button>
+        <button id="startMonitoringButton" style="display: none;">Start Monitoring</button>
 
         <div class="data-display">
             <p>Status: <span id="movementDisplay">--</span></p>
@@ -62,50 +58,59 @@
             <canvas id="breathChart"></canvas>
         </div>
 
+        <div class="slider-container">
+            <label for="sensitivitySlider">Sensitivity Threshold: <span id="sensitivityValueDisplay">0.10</span>°</label>
+            <input type="range" id="sensitivitySlider" min="0.01" max="1.0" step="0.01" value="0.10" disabled>
+        </div>
+
         <div class="data-display" style="font-size:11px; text-align:left;">
             <p>Raw Beta (Gyro X-tilt): <span id="betaGyroDisplay">--</span> °</p>
-            <p>Learned Threshold: <span id="learnedThresholdDisplay">--</span> °</p>
-            <p>Raw Z-Accel (FYI): <span id="zAccelDisplay">--</span> m/s²</p>
+            <p>Calibrated Zero Beta: <span id="calibratedZeroBetaDisplay">--</span> °</p>
+            <p>Deviation from Zero: <span id="deviationDisplay">--</span> °</p>
         </div>
-        <p class="important-note">Remain still (except breathing) during data collection for best results.</p>
         <h2>Event & Error Log</h2>
         <textarea id="logArea" readonly></textarea>
     </div>
 
     <script>
-        const startButton = document.getElementById('startButton');
-        const collectDataButton = document.getElementById('collectDataButton');
+        const prepareSystemButton = document.getElementById('prepareSystemButton');
+        const calibrateZeroButton = document.getElementById('calibrateZeroButton');
+        const startMonitoringButton = document.getElementById('startMonitoringButton');
+        
         const movementDisplay = document.getElementById('movementDisplay');
         const breathRateDisplay = document.getElementById('breathRateDisplay');
         const betaGyroDisplay = document.getElementById('betaGyroDisplay');
-        const learnedThresholdDisplay = document.getElementById('learnedThresholdDisplay');
-        const zAccelDisplay = document.getElementById('zAccelDisplay');
+        const calibratedZeroBetaDisplay = document.getElementById('calibratedZeroBetaDisplay');
+        const deviationDisplay = document.getElementById('deviationDisplay');
         const logArea = document.getElementById('logArea');
         const breathChartCanvas = document.getElementById('breathChart');
+        const sensitivitySlider = document.getElementById('sensitivitySlider');
+        const sensitivityValueDisplay = document.getElementById('sensitivityValueDisplay');
 
-        let systemActive = false; 
-        let isMonitoringBreaths = false; 
+        let systemPrepared = false; // After permissions
+        let zeroCalibrationState = 'NOT_CALIBRATED'; // NOT_CALIBRATED, CALIBRATING, CALIBRATED
+        let isMonitoringBreaths = false; // Actual breath counting active
+
         let lastBeta = null;
-        let breathState = 'IDLE';
+        let breathState = 'IDLE'; // IDLE, RISING (above threshold), FALLING (towards threshold from peak)
         let breathTimestamps = [];
         const MAX_TIMESTAMPS_FOR_BPM = 10;
         
-        let LEARNED_BETA_TILT_THRESHOLD = 0.1; 
+        let SENSITIVITY_THRESHOLD = 0.10; 
+        let calibratedZeroBeta = 0;
+
         const MIN_BREATH_INTERVAL_MS = 1000; 
         let lastBreathEventTime = 0;
 
         let audioContext = null;
 
-        const DATA_COLLECTION_DURATION_S = 60;
-        let dataCollectionState = 'IDLE'; 
-        let dataCollectionTimer = null;
-        let recordedBetaValues = [];
-        const STD_DEV_MULTIPLIER_FOR_THRESHOLD = 1.2; 
+        const ZERO_CALIBRATION_DURATION_S = 30;
+        let zeroCalibrationTimer = null;
+        let recordedBetaForZeroing = [];
 
         let breathChart = null;
-        const MAX_CHART_DATA_POINTS = 150; // Number of data points to show on chart
+        const MAX_CHART_DATA_POINTS = 200; 
         let chartLabelCounter = 0;
-
 
         function logMessage(message, type = 'INFO') { /* ... (same) ... */ 
             const now = new Date();
@@ -113,15 +118,15 @@
             logArea.value += `[${timeString} ${type}] ${message}\n`;
             logArea.scrollTop = logArea.scrollHeight;
         }
-        async function lockScreenOrientation() { /* ... (same) ... */
-            try {
+        async function lockScreenOrientation() { /* ... (same) ... */ 
+             try {
                 if (screen.orientation && typeof screen.orientation.lock === 'function') {
                     await screen.orientation.lock('portrait-primary');
                     logMessage('Screen orientation locked.');
                 } else { logMessage('Screen lock API not fully supported.', 'WARN'); }
             } catch (error) { logMessage(`Screen lock error: ${error.message}`, 'WARN'); }
-         }
-        function initializeAudioContext() { /* ... (same) ... */
+        }
+        function initializeAudioContext() { /* ... (same) ... */ 
             if (!audioContext) {
                 try {
                     audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -131,9 +136,9 @@
                 audioContext.resume().then(() => logMessage('AudioContext resumed.'))
                                      .catch(e => logMessage('Failed to resume AudioContext.', 'ERROR'));
             }
-         }
+        }
         function playBeep(duration = 0.07, frequency = 900, volume = 0.25) { /* ... (same) ... */ 
-            if (!audioContext || audioContext.state !== 'running') return;
+             if (!audioContext || audioContext.state !== 'running') return;
             try {
                 const oscillator = audioContext.createOscillator();
                 const gainNode = audioContext.createGain();
@@ -149,69 +154,48 @@
             } catch (e) { logMessage(`Error playing beep: ${e.message}`, 'ERROR'); }
         }
 
-        function initBreathChart() {
-            if (breathChart) {
-                breathChart.destroy(); // Destroy existing chart if any
-            }
+        function initBreathChart() { /* ... (same, but y-axis title might change) ... */ 
+            if (breathChart) { breathChart.destroy(); }
             const ctx = breathChartCanvas.getContext('2d');
             breathChart = new Chart(ctx, {
                 type: 'line',
                 data: {
                     labels: [],
                     datasets: [{
-                        label: 'Gyro Beta (X-Tilt)',
+                        label: 'Deviation from Zero',
                         data: [],
                         borderColor: 'rgb(0, 122, 255)',
                         borderWidth: 1.5,
                         fill: false,
-                        tension: 0.2, // Smoothens the line a bit
-                        pointRadius: 0 // No dots on data points
+                        tension: 0.2, 
+                        pointRadius: 0 
                     }]
                 },
                 options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    animation: {
-                        duration: 0 // Disable animation for real-time feel
-                    },
+                    responsive: true, maintainAspectRatio: false, animation: { duration: 0 },
                     scales: {
-                        x: {
-                            display: false // Hide x-axis labels for simplicity
-                        },
-                        y: {
-                            // beginAtZero: false, // Auto scale
-                            title: {
-                                display: true,
-                                text: 'Beta Tilt (°)'
-                            },
-                            ticks: {
-                                font: { size: 10 }
-                            }
-                        }
+                        x: { display: false },
+                        y: { title: { display: true, text: 'Deviation from Zero (°)' }, ticks: { font: { size: 10 } }}
                     },
-                    plugins: {
-                        legend: { display: false }
-                    }
+                    plugins: { legend: { display: false } }
                 }
             });
             chartLabelCounter = 0;
             logMessage('Breath chart initialized.');
         }
 
-        function updateBreathChart(value) {
+        function updateBreathChart(deviationValue) { /* ... (takes deviation now) ... */ 
             if (!breathChart) return;
-
             breathChart.data.labels.push(chartLabelCounter++);
-            breathChart.data.datasets[0].data.push(value);
-
+            breathChart.data.datasets[0].data.push(deviationValue);
             if (breathChart.data.labels.length > MAX_CHART_DATA_POINTS) {
                 breathChart.data.labels.shift();
                 breathChart.data.datasets[0].data.shift();
             }
-            breathChart.update('none'); // 'none' prevents animation for faster updates
+            breathChart.update('none'); 
         }
         
-        function resetChartData() {
+        function resetChartData() { /* ... (same) ... */ 
             if (breathChart) {
                 breathChart.data.labels = [];
                 breathChart.data.datasets[0].data = [];
@@ -220,192 +204,167 @@
             }
         }
 
-
-        function startDataCollection() { /* ... (same as before) ... */ 
-            if (!systemActive) {
-                logMessage('System not active. Click "Start System" first.', 'WARN'); return;
+        function startZeroCalibration() {
+            if (!systemPrepared) {
+                logMessage('System not prepared. Click "Prepare System" first.', 'WARN'); return;
             }
-            if (dataCollectionState === 'COLLECTING') {
-                logMessage('Data collection already in progress.', 'INFO'); return;
+            if (zeroCalibrationState === 'CALIBRATING') {
+                logMessage('Zero calibration already in progress.', 'INFO'); return;
             }
 
-            isMonitoringBreaths = false; 
-            startButton.disabled = true;
-            collectDataButton.disabled = true;
-            collectDataButton.textContent = 'Collecting Data...';
-            dataCollectionState = 'COLLECTING';
-            recordedBetaValues = [];
-            resetChartData(); // Clear chart before new collection
-            movementDisplay.textContent = `Collecting data for ${DATA_COLLECTION_DURATION_S}s... Breathe normally.`;
-            logMessage(`Starting ${DATA_COLLECTION_DURATION_S}s data collection.`);
+            isMonitoringBreaths = false; // Stop monitoring if it was active
+            startMonitoringButton.textContent = 'Start Monitoring'; // Reset button text
+            startMonitoringButton.disabled = true; // Disable while calibrating
+            prepareSystemButton.disabled = true;
+            calibrateZeroButton.disabled = true;
+            calibrateZeroButton.textContent = 'Calibrating Zero...';
+            zeroCalibrationState = 'CALIBRATING';
+            recordedBetaForZeroing = [];
+            resetChartData(); 
+            movementDisplay.textContent = `Calibrating Zero for ${ZERO_CALIBRATION_DURATION_S}s... Rest still or breathe normally.`;
+            logMessage(`Starting ${ZERO_CALIBRATION_DURATION_S}s zero calibration.`);
             
-            let countdown = DATA_COLLECTION_DURATION_S;
+            let countdown = ZERO_CALIBRATION_DURATION_S;
             const countdownInterval = setInterval(() => {
                 countdown--;
-                if (dataCollectionState === 'COLLECTING') {
-                    movementDisplay.textContent = `Collecting data... ${countdown}s remaining. Breathe normally.`;
+                if (zeroCalibrationState === 'CALIBRATING') {
+                    movementDisplay.textContent = `Calibrating Zero... ${countdown}s remaining.`;
                 }
-                if (countdown <= 0) {
-                    clearInterval(countdownInterval);
-                }
+                if (countdown <= 0) clearInterval(countdownInterval);
             }, 1000);
 
-            dataCollectionTimer = setTimeout(() => {
+            zeroCalibrationTimer = setTimeout(() => {
                 clearInterval(countdownInterval); 
-                if (dataCollectionState === 'COLLECTING') {
-                    finishDataCollectionAndAnalyze();
-                }
-            }, DATA_COLLECTION_DURATION_S * 1000);
+                if (zeroCalibrationState === 'CALIBRATING') finishZeroCalibration();
+            }, ZERO_CALIBRATION_DURATION_S * 1000);
         }
 
-        function finishDataCollectionAndAnalyze() { /* ... (same analysis logic) ... */ 
-            dataCollectionState = 'ANALYZING';
-            movementDisplay.textContent = 'Analyzing data... Please wait.';
-            logMessage(`Data collection finished. Recorded ${recordedBetaValues.length} Beta samples. Analyzing...`);
-
-            setTimeout(() => {
-                if (recordedBetaValues.length < 20) { 
-                    logMessage('Not enough data. Using default threshold.', 'WARN');
-                    LEARNED_BETA_TILT_THRESHOLD = 0.1; 
-                    learnedThresholdDisplay.textContent = `${LEARNED_BETA_TILT_THRESHOLD.toFixed(3)}° (default)`;
-                } else {
-                    const deltaBetas = [];
-                    for (let i = 1; i < recordedBetaValues.length; i++) {
-                        deltaBetas.push(recordedBetaValues[i] - recordedBetaValues[i-1]);
-                    }
-
-                    if (deltaBetas.length === 0) {
-                        logMessage('No delta Beta. Using default threshold.', 'WARN');
-                        LEARNED_BETA_TILT_THRESHOLD = 0.1;
-                        learnedThresholdDisplay.textContent = `${LEARNED_BETA_TILT_THRESHOLD.toFixed(3)}° (default)`;
-                    } else {
-                        const absDeltaBetas = deltaBetas.map(d => Math.abs(d));
-                        const significantAbsDeltaBetas = absDeltaBetas.filter(d => d > 0.001); 
-
-                        if (significantAbsDeltaBetas.length < 10) {
-                             logMessage('Not enough significant deltas. Using sensitive default.', 'WARN');
-                             LEARNED_BETA_TILT_THRESHOLD = 0.05; 
-                             learnedThresholdDisplay.textContent = `${LEARNED_BETA_TILT_THRESHOLD.toFixed(3)}° (sensitive default)`;
-                        } else {
-                            const sum = significantAbsDeltaBetas.reduce((acc, val) => acc + val, 0);
-                            const mean = sum / significantAbsDeltaBetas.length;
-                            const sqDiffs = significantAbsDeltaBetas.map(val => Math.pow(val - mean, 2));
-                            const avgSqDiff = sqDiffs.reduce((acc, val) => acc + val, 0) / significantAbsDeltaBetas.length;
-                            const stdDev = Math.sqrt(avgSqDiff);
-
-                            LEARNED_BETA_TILT_THRESHOLD = Math.max(0.02, STD_DEV_MULTIPLIER_FOR_THRESHOLD * stdDev); 
-                            logMessage(`Analysis complete. Mean Abs Delta: ${mean.toFixed(4)}, StdDev Abs Delta: ${stdDev.toFixed(4)}`);
-                            learnedThresholdDisplay.textContent = `${LEARNED_BETA_TILT_THRESHOLD.toFixed(3)}° (learned)`;
-                        }
-                    }
-                }
-                logMessage(`Learned Threshold set to: ${LEARNED_BETA_TILT_THRESHOLD.toFixed(3)}°`);
-                dataCollectionState = 'COMPLETE';
-                movementDisplay.textContent = 'Analysis complete. Monitoring breaths.';
-                isMonitoringBreaths = true; 
-                startButton.disabled = false; 
-                collectDataButton.disabled = false; 
-                collectDataButton.textContent = 'Re-Collect Data (1-Min)';
-                lastBeta = null; 
-                breathState = 'IDLE';
-                resetChartData(); // Clear data collected during analysis, start fresh for monitoring.
-            }, 500); 
+        function finishZeroCalibration() {
+            if (recordedBetaForZeroing.length < 10) { // Need some data
+                logMessage('Not enough data for zero calibration. Try again.', 'WARN');
+                calibratedZeroBeta = 0; // Fallback
+            } else {
+                const sum = recordedBetaForZeroing.reduce((acc, val) => acc + val, 0);
+                calibratedZeroBeta = sum / recordedBetaForZeroing.length;
+                logMessage(`Zero calibration complete. Calibrated Zero Beta: ${calibratedZeroBeta.toFixed(3)}°`);
+            }
+            
+            calibratedZeroBetaDisplay.textContent = `${calibratedZeroBeta.toFixed(3)}°`;
+            zeroCalibrationState = 'CALIBRATED';
+            movementDisplay.textContent = 'Zero Calibrated. Adjust sensitivity, then Start Monitoring.';
+            prepareSystemButton.disabled = false;
+            calibrateZeroButton.disabled = false;
+            calibrateZeroButton.textContent = 'Re-Calibrate Zero (30s)';
+            startMonitoringButton.style.display = 'inline-block';
+            startMonitoringButton.disabled = false;
+            sensitivitySlider.disabled = false;
+            resetChartData(); // Clear calibration data from chart
+            lastBeta = null; // Reset for monitoring
         }
 
-        async function requestAndStartSystem() { /* ... (same logic, add chart init) ... */ 
-            logMessage('Requesting permissions...');
+        async function prepareSystem() { 
+            logMessage('Preparing system, requesting permissions...');
             let permGranted = false;
             // ... (permission logic same as before) ...
             if (window.DeviceMotionEvent && typeof DeviceMotionEvent.requestPermission === 'function') {
                 try { const p = await DeviceMotionEvent.requestPermission(); if (p==='granted'){logMessage('Sensor permission granted.'); permGranted=true;} else {logMessage('Sensor permission denied.','ERROR');alert('Permission denied.');}} catch (e) {logMessage(`Perm error: ${e}`,'ERROR');alert('Perm error.');}
-            } else if (window.DeviceOrientationEvent || window.DeviceMotionEvent) {logMessage('Sensors available (no explicit perm needed or already granted).'); permGranted=true;} else {logMessage('Sensor APIs not supported.','ERROR');alert('Sensor APIs not supported.');}
+            } else if (window.DeviceOrientationEvent || window.DeviceMotionEvent) {logMessage('Sensors available.'); permGranted=true;} else {logMessage('Sensor APIs not supported.','ERROR');alert('Sensor APIs not supported.');}
 
 
             if (permGranted) {
-                systemActive = true; 
+                systemPrepared = true; 
                 initializeAudioContext(); await lockScreenOrientation();
-                initBreathChart(); // Initialize the chart
+                initBreathChart(); 
                 
                 if (!window.eventListenersAttached) {
                     window.addEventListener('deviceorientation', handleOrientationEvent);
-                    window.addEventListener('devicemotion', handleMotionEvent); 
-                    window.eventListenersAttached = true; logMessage('Sensor listeners attached.');
+                    // window.addEventListener('devicemotion', handleMotionEvent); // We don't use accel data for primary task now
+                    window.eventListenersAttached = true; logMessage('Orientation listener attached.');
                 }
-                startButton.textContent = 'Stop System';
-                movementDisplay.textContent = 'System active. Tap "Start 1-Min Data Collection".';
-                collectDataButton.style.display = 'inline-block'; collectDataButton.disabled = false;
-                learnedThresholdDisplay.textContent = '--';
+                prepareSystemButton.textContent = 'Stop System';
+                movementDisplay.textContent = 'System Prepared. Calibrate Zero next.';
+                calibrateZeroButton.style.display = 'inline-block'; calibrateZeroButton.disabled = false;
+                sensitivitySlider.disabled = false; // Enable slider after system prep
+                // startMonitoringButton remains hidden until calibration
             }
-            startButton.disabled = false; 
+            prepareSystemButton.disabled = false; 
         }
 
-        function stopSystem() { /* ... (same, clear chart data) ... */ 
+        function stopSystem() { 
             logMessage('Stopping system.'); 
-            if (dataCollectionTimer) clearTimeout(dataCollectionTimer);
-            dataCollectionState = 'IDLE'; 
+            if (zeroCalibrationTimer) clearTimeout(zeroCalibrationTimer);
+            zeroCalibrationState = 'NOT_CALIBRATED'; 
+            isMonitoringBreaths = false;
             
             if (window.eventListenersAttached) {
                 window.removeEventListener('deviceorientation', handleOrientationEvent);
-                window.removeEventListener('devicemotion', handleMotionEvent);
-                window.eventListenersAttached = false; logMessage('Sensor listeners removed.');
+                // window.removeEventListener('devicemotion', handleMotionEvent);
+                window.eventListenersAttached = false; logMessage('Orientation listener removed.');
             }
             resetChartData();
             resetAppState();
         }
 
-        function resetAppState() { /* ... (same) ... */
-            systemActive = false; isMonitoringBreaths = false;
-            startButton.textContent = 'Start System'; startButton.disabled = false;
-            collectDataButton.style.display = 'none'; collectDataButton.disabled = true; collectDataButton.textContent = 'Start 1-Min Data Collection';
+        function resetAppState() { 
+            systemPrepared = false; isMonitoringBreaths = false;
+            prepareSystemButton.textContent = 'Prepare System'; prepareSystemButton.disabled = false;
+            calibrateZeroButton.style.display = 'none'; calibrateZeroButton.disabled = true; calibrateZeroButton.textContent = 'Calibrate Zero (30s)';
+            startMonitoringButton.style.display = 'none'; startMonitoringButton.disabled = true; startMonitoringButton.textContent = 'Start Monitoring';
+            
             lastBeta = null; breathState = 'IDLE'; breathTimestamps = [];
-            dataCollectionState = 'IDLE'; recordedBetaValues = []; 
-            LEARNED_BETA_TILT_THRESHOLD = 0.1; 
-            learnedThresholdDisplay.textContent = '--';
+            zeroCalibrationState = 'NOT_CALIBRATED'; recordedBetaForZeroing = []; 
+            calibratedZeroBeta = 0; SENSITIVITY_THRESHOLD = parseFloat(sensitivitySlider.value);
             
             movementDisplay.textContent = '--'; breathRateDisplay.textContent = '--';
-            betaGyroDisplay.textContent = '--';  zAccelDisplay.textContent = '--';
+            betaGyroDisplay.textContent = '--'; calibratedZeroBetaDisplay.textContent = '--'; deviationDisplay.textContent = '--';
+            sensitivitySlider.disabled = true;
             
             if(window.eventListenersAttached) { 
                 window.removeEventListener('deviceorientation', handleOrientationEvent);
-                window.removeEventListener('devicemotion', handleMotionEvent);
+                // window.removeEventListener('devicemotion', handleMotionEvent);
                 window.eventListenersAttached = false;
             }
         }
 
-        function handleMotionEvent(event) { /* ... (same) ... */ 
-             if (systemActive && event.accelerationIncludingGravity && event.accelerationIncludingGravity.z !== null) {
-                zAccelDisplay.textContent = event.accelerationIncludingGravity.z.toFixed(3);
-            } else if (!systemActive) { zAccelDisplay.textContent = 'N/A'; }
-        }
+        // function handleMotionEvent(event) { /* Not actively used for breath counting anymore */ }
 
         function handleOrientationEvent(event) {
-            if (!systemActive || event.beta === null) {
-                if (!systemActive) betaGyroDisplay.textContent = 'N/A'; return;
+            if (!systemPrepared || event.beta === null) {
+                if (!systemPrepared) betaGyroDisplay.textContent = 'N/A'; return;
             }
             const currentBeta = event.beta;
             betaGyroDisplay.textContent = currentBeta.toFixed(3); 
-            updateBreathChart(currentBeta); // Update chart with every new Beta value
 
-            if (dataCollectionState === 'COLLECTING') {
-                recordedBetaValues.push(currentBeta); 
+            if (zeroCalibrationState === 'CALIBRATING') {
+                recordedBetaForZeroing.push(currentBeta); 
+                // Optionally plot raw beta during calibration if desired, or keep chart blank
+                updateBreathChart(currentBeta - (recordedBetaForZeroing.length > 1 ? recordedBetaForZeroing[0] : currentBeta) ); // Plot relative to start of calib
                 return; 
             }
-            if (!isMonitoringBreaths || dataCollectionState !== 'COMPLETE') return; 
-            if (lastBeta === null) { lastBeta = currentBeta; return; }
+            
+            const displayValue = currentBeta - calibratedZeroBeta;
+            deviationDisplay.textContent = displayValue.toFixed(3) + '°';
+            updateBreathChart(displayValue);
 
-            const deltaBeta = currentBeta - lastBeta;
+            if (!isMonitoringBreaths || zeroCalibrationState !== 'CALIBRATED') return; 
+            if (lastBeta === null) { lastBeta = displayValue; return; } // Use displayValue for lastBeta logic now
+
+            // const deltaDisplayValue = displayValue - lastBeta; // Not strictly needed if using state machine based on threshold crossing
             const currentTime = Date.now();
 
             if (breathState === 'IDLE' || breathState === 'FALLING') {
-                if (deltaBeta > LEARNED_BETA_TILT_THRESHOLD) { 
-                    breathState = 'RISING';
-                    movementDisplay.textContent = 'Inhaling (Tilt Up)';
-                    playBeep();
+                if (displayValue > SENSITIVITY_THRESHOLD) { 
+                    breathState = 'RISING'; // Crossed above positive threshold
+                    movementDisplay.textContent = 'Inhaling';
+                    playBeep(); // Beep at the start of crossing threshold
                 }
             } else if (breathState === 'RISING') {
-                if (deltaBeta < -LEARNED_BETA_TILT_THRESHOLD) { 
-                    breathState = 'FALLING';
-                    movementDisplay.textContent = 'Exhaling (Tilt Down)';
+                // A breath is counted when we transition from RISING (above threshold)
+                // to FALLING (meaning it has peaked and is coming down, or crossed back below threshold)
+                if (displayValue < SENSITIVITY_THRESHOLD * 0.8 || displayValue < lastBeta ) { // Coming down or crossed below a fraction of threshold
+                    breathState = 'FALLING'; 
+                    movementDisplay.textContent = 'Exhaling';
+                    // Count breath here as the peak of inhale has passed.
                     if (currentTime - lastBreathEventTime > MIN_BREATH_INTERVAL_MS) {
                         breathTimestamps.push(currentTime);
                         if (breathTimestamps.length > MAX_TIMESTAMPS_FOR_BPM) breathTimestamps.shift();
@@ -414,7 +373,14 @@
                     }
                 }
             }
-            lastBeta = currentBeta;
+            // If displayValue is below -SENSITIVITY_THRESHOLD, it's clearly in a trough (exhale).
+            // Transition back to IDLE if it comes back towards zero from a trough.
+            if (breathState === 'FALLING' && displayValue > -SENSITIVITY_THRESHOLD * 0.5 && displayValue > lastBeta) {
+                 breathState = 'IDLE'; // Resetting for next inhale detection
+            }
+
+
+            lastBeta = displayValue; // Store the current deviation for the next comparison
         }
         
         function calculateBreathRate() { /* ... (same) ... */ 
@@ -427,22 +393,58 @@
             } else { breathRateDisplay.textContent = '--'; }
         }
 
-        startButton.addEventListener('click', async () => {
-            startButton.disabled = true; 
-            if (!systemActive) {
+        prepareSystemButton.addEventListener('click', async () => {
+            prepareSystemButton.disabled = true; 
+            if (!systemPrepared) {
                 if (window.location.protocol !== 'https:' && !['localhost', '127.0.0.1'].includes(window.location.hostname)) {
                      logMessage('CRITICAL: Page not served over HTTPS.', 'ERROR');
                      alert('For sensor access on iOS, this page MUST be served over HTTPS.');
                 }
-                await requestAndStartSystem();
+                await prepareSystem();
             } else { stopSystem(); }
         });
 
-        collectDataButton.addEventListener('click', () => { startDataCollection(); });
+        calibrateZeroButton.addEventListener('click', () => { startZeroCalibration(); });
+
+        startMonitoringButton.addEventListener('click', () => {
+            if (zeroCalibrationState !== 'CALIBRATED') {
+                alert('Please calibrate zero first!');
+                logMessage('Start Monitoring clicked before zero calibration.', 'WARN');
+                return;
+            }
+            if (!isMonitoringBreaths) {
+                isMonitoringBreaths = true;
+                startMonitoringButton.textContent = 'Stop Monitoring';
+                movementDisplay.textContent = 'Monitoring Breaths...';
+                logMessage('Breath monitoring started.');
+                calibrateZeroButton.disabled = true; // Disable calibration during active monitoring
+                sensitivitySlider.disabled = true;
+                lastBeta = null; // Reset for fresh detection
+                breathState = 'IDLE';
+            } else {
+                isMonitoringBreaths = false;
+                startMonitoringButton.textContent = 'Start Monitoring';
+                movementDisplay.textContent = 'Monitoring Paused. Calibrate or Start again.';
+                logMessage('Breath monitoring stopped.');
+                calibrateZeroButton.disabled = false;
+                sensitivitySlider.disabled = false;
+            }
+        });
+
+        sensitivitySlider.addEventListener('input', (event) => {
+            SENSITIVITY_THRESHOLD = parseFloat(event.target.value);
+            sensitivityValueDisplay.textContent = SENSITIVITY_THRESHOLD.toFixed(2) + '°';
+            if (!isMonitoringBreaths) { // Only log if not actively monitoring to avoid spam
+                logMessage(`Sensitivity threshold changed to: ${SENSITIVITY_THRESHOLD.toFixed(2)}°`);
+            }
+        });
+
 
         window.eventListenersAttached = false; 
         resetAppState();
-        logMessage('App initialized. Set phone, then Start System.');
+        SENSITIVITY_THRESHOLD = parseFloat(sensitivitySlider.value); // Initialize from slider
+        sensitivityValueDisplay.textContent = SENSITIVITY_THRESHOLD.toFixed(2) + '°';
+        logMessage('App initialized. Prepare System, then Calibrate Zero.');
         if (window.location.protocol !== 'https:' && !['localhost', '127.0.0.1'].includes(window.location.hostname)) {
             logMessage('WARNING: Page not HTTPS. Sensor access may fail.', 'WARN');
         } else { logMessage('Page served over HTTPS or localhost. Good.', 'INFO'); }
