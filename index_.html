@@ -2,521 +2,378 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Motion Sensor Data Viewer</title>
+    <title>Motion Sensor Visualizer</title>
+
+    <!-- Apple Web App Meta Tags -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <!-- <link rel="apple-touch-icon" href="your-icon.png"> Provide a path to your app icon -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body {
-            font-family: Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
             margin: 0;
-            padding: 15px;
-            background-color: #f4f4f4;
+            padding: 10px;
+            background-color: #f0f0f0;
             color: #333;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
+            overscroll-behavior-y: contain; /* Prevents pull-to-refresh on iOS when scrolling body */
         }
         .container {
-            background-color: #fff;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 0 10px rgba(0,0,0,0.1);
-            width: 95%;
-            max-width: 800px;
-            margin-bottom: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
         }
-        h1, h2 {
-            color: #333;
+        .permission-section {
+            text-align: center;
+            padding: 20px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .chart-grid {
+            display: grid;
+            grid-template-columns: 1fr; /* Single column for mobile */
+            gap: 20px;
+        }
+        @media (min-width: 768px) { /* Two columns for larger screens */
+            .chart-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+        .chart-container {
+            background-color: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .chart-container h3 {
+            margin-top: 0;
+            margin-bottom: 10px;
+            font-size: 1.1em;
             text-align: center;
         }
-        button {
+        .chart-container button {
+            display: block;
+            width: 100%;
+            padding: 8px;
+            margin-top: 10px;
             background-color: #007bff;
             color: white;
             border: none;
-            padding: 10px 15px;
-            text-align: center;
-            text-decoration: none;
-            display: inline-block;
-            font-size: 14px;
-            margin: 10px 5px;
-            cursor: pointer;
             border-radius: 5px;
-            transition: background-color 0.3s;
-        }
-        button:hover {
-            background-color: #0056b3;
-        }
-        button:disabled {
-            background-color: #ccc;
-            cursor: not-allowed;
-        }
-        .instructions, .logs {
-            margin-bottom: 20px;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            background-color: #f9f9f9;
-        }
-        .logs pre {
-            max-height: 150px;
-            overflow-y: auto;
-            white-space: pre-wrap;
-            word-wrap: break-word;
+            cursor: pointer;
             font-size: 0.9em;
         }
-        .chart-container {
-            margin-bottom: 30px;
-            width: 100%;
-            max-width: 700px;
-            margin-left: auto;
-            margin-right: auto;
-            border: 1px solid #eee;
-            padding: 10px;
-            border-radius: 5px;
+        .chart-container button:hover {
+            background-color: #0056b3;
         }
-        .chart-container h3 {
-            text-align: center;
+        .chart-container button.active {
+            background-color: #28a745; /* Green when LPF is active */
+        }
+
+        .logs {
+            margin-top: 20px;
+            background-color: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .logs h3 {
             margin-top: 0;
         }
-        .important-note {
+        .log-area {
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #ccc;
+            padding: 10px;
+            font-size: 0.8em;
+            background-color: #f9f9f9;
+            white-space: pre-wrap; /* Preserve line breaks */
+        }
+        .log-entry.error {
             color: red;
             font-weight: bold;
-            margin-bottom: 10px;
         }
-        #effectiveSampleRate {
-            text-align: center;
-            margin-bottom: 10px;
+        .hidden {
+            display: none !important;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Motion Sensor Data Viewer</h1>
+        <h1>Motion Sensor Visualizer</h1>
 
-        <div class="important-note">
-            NOTE: This web app MUST be served over HTTPS for sensor access on iOS and some Android browsers.
-        </div>
-
-        <div class="instructions">
-            <h2>Instructions:</h2>
-            <ol>
-                <li>Click "Request Sensor Permissions". Allow access when prompted.</li>
-                <li>Click "Start Data Capture" to begin recording sensor data.</li>
-                <li>Hold your smartphone and move it to see data changes.</li>
-                <li>Click "Stop Data Capture" to pause. Data will remain on charts.</li>
-                <li>For each chart, you can click "Apply Filter" to see a low-pass filtered version of the data. Click again to see raw data.</li>
-            </ol>
+        <div id="permissionSection" class="permission-section">
+            <p>This app requires access to your device's motion sensors.</p>
+            <button id="requestPermissionButton">Grant Motion Sensor Access</button>
         </div>
 
-        <button id="permissionButton">Request Sensor Permissions</button>
-        <button id="captureButton" disabled>Start Data Capture</button>
-        <div id="status">Status: Idle</div>
-        <div id="effectiveSampleRate">Effective Sample Rate: -- Hz</div>
+        <div id="mainContent" class="hidden">
+            <div class="chart-grid">
+                <!-- Accelerometer Charts -->
+                <div class="chart-container">
+                    <h3>Accelerometer X</h3>
+                    <canvas id="accelXChart"></canvas>
+                    <button id="filterAccelXButton">Apply LPF</button>
+                </div>
+                <div class="chart-container">
+                    <h3>Accelerometer Y</h3>
+                    <canvas id="accelYChart"></canvas>
+                    <button id="filterAccelYButton">Apply LPF</button>
+                </div>
+                <div class="chart-container">
+                    <h3>Accelerometer Z</h3>
+                    <canvas id="accelZChart"></canvas>
+                    <button id="filterAccelZButton">Apply LPF</button>
+                </div>
 
-    </div>
+                <!-- Gyroscope Charts -->
+                <div class="chart-container">
+                    <h3>Gyroscope Alpha (Z-axis)</h3>
+                    <canvas id="gyroAlphaChart"></canvas>
+                    <button id="filterGyroAlphaButton">Apply LPF</button>
+                </div>
+                <div class="chart-container">
+                    <h3>Gyroscope Beta (X-axis)</h3>
+                    <canvas id="gyroBetaChart"></canvas>
+                    <button id="filterGyroBetaButton">Apply LPF</button>
+                </div>
+                <div class="chart-container">
+                    <h3>Gyroscope Gamma (Y-axis)</h3>
+                    <canvas id="gyroGammaChart"></canvas>
+                    <button id="filterGyroGammaButton">Apply LPF</button>
+                </div>
+            </div>
+        </div>
 
-    <div class="container">
-        <h2>Gyroscope Data</h2>
-        <div class="chart-container">
-            <h3>Gyroscope X (Alpha - Yaw Rate)</h3>
-            <canvas id="gyroXChart"></canvas>
-            <button id="filterGyroXButton" class="filter-button" data-axis="gyroX" disabled>Apply Filter</button>
+        <div class="logs">
+            <h3>Event & Error Logs</h3>
+            <div id="logArea" class="log-area"></div>
         </div>
-        <div class="chart-container">
-            <h3>Gyroscope Y (Beta - Pitch Rate)</h3>
-            <canvas id="gyroYChart"></canvas>
-            <button id="filterGyroYButton" class="filter-button" data-axis="gyroY" disabled>Apply Filter</button>
-        </div>
-        <div class="chart-container">
-            <h3>Gyroscope Z (Gamma - Roll Rate)</h3>
-            <canvas id="gyroZChart"></canvas>
-            <button id="filterGyroZButton" class="filter-button" data-axis="gyroZ" disabled>Apply Filter</button>
-        </div>
-    </div>
-
-    <div class="container">
-        <h2>Accelerometer Data (including gravity)</h2>
-        <div class="chart-container">
-            <h3>Accelerometer X</h3>
-            <canvas id="accelXChart"></canvas>
-            <button id="filterAccelXButton" class="filter-button" data-axis="accelX" disabled>Apply Filter</button>
-        </div>
-        <div class="chart-container">
-            <h3>Accelerometer Y</h3>
-            <canvas id="accelYChart"></canvas>
-            <button id="filterAccelYButton" class="filter-button" data-axis="accelY" disabled>Apply Filter</button>
-        </div>
-        <div class="chart-container">
-            <h3>Accelerometer Z</h3>
-            <canvas id="accelZChart"></canvas>
-            <button id="filterAccelZButton" class="filter-button" data-axis="accelZ" disabled>Apply Filter</button>
-        </div>
-    </div>
-
-    <div class="container logs">
-        <h2>Event & Error Log</h2>
-        <pre id="logArea"></pre>
     </div>
 
     <script>
-        const permissionButton = document.getElementById('permissionButton');
-        const captureButton = document.getElementById('captureButton');
-        const statusDiv = document.getElementById('status');
+        const MAX_DATA_POINTS = 50; // Number of data points to show on chart
+        const LPF_ALPHA = 0.2; // Low-pass filter smoothing factor (0 < alpha < 1). Smaller = more smoothing.
+
         const logArea = document.getElementById('logArea');
-        const effectiveSampleRateP = document.getElementById('effectiveSampleRate');
+        const permissionSection = document.getElementById('permissionSection');
+        const requestPermissionButton = document.getElementById('requestPermissionButton');
+        const mainContent = document.getElementById('mainContent');
 
-        const LOW_PASS_CUTOFF_HZ = 0.4; // Cutoff for EMA filter
-        const MAX_DATA_POINTS_CHART = 500; // Max points to display on chart for performance
-
-        let rawSensorData = {
-            gyro: { t: [], x: [], y: [], z: [] },
-            accel: { t: [], x: [], y: [], z: [] }
+        let charts = {};
+        let sensorData = {
+            accelX: { raw: [], filtered: [], lpfActive: false, lastFiltered: 0 },
+            accelY: { raw: [], filtered: [], lpfActive: false, lastFiltered: 0 },
+            accelZ: { raw: [], filtered: [], lpfActive: false, lastFiltered: 0 },
+            gyroAlpha: { raw: [], filtered: [], lpfActive: false, lastFiltered: 0 },
+            gyroBeta: { raw: [], filtered: [], lpfActive: false, lastFiltered: 0 },
+            gyroGamma: { raw: [], filtered: [], lpfActive: false, lastFiltered: 0 }
         };
-        
-        let charts = {}; // To store chart instances
-        let filterStates = {}; // To store filter toggle state for each axis
-        let chartUpdateThrottle = 0;
-        const CHART_UPDATE_INTERVAL = 3; // Update chart every N data points
+        let labels = [];
 
-        let isCapturing = false;
-        let permissionGranted = false;
-        let currentSampleRate = 0;
-        let firstTimestamp = 0;
-
-        function log(message, type = 'event') {
-            const timestamp = new Date().toLocaleTimeString();
-            const entry = `[${timestamp}] [${type.toUpperCase()}] ${message}\n`;
-            logArea.textContent = entry + logArea.textContent;
-            if (type === 'error') console.error(message);
-            else console.log(message);
+        function logMessage(message, type = 'info') {
+            const entry = document.createElement('div');
+            entry.classList.add('log-entry');
+            if (type === 'error') {
+                entry.classList.add('error');
+            }
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${type.toUpperCase()}: ${message}`;
+            logArea.appendChild(entry);
+            logArea.scrollTop = logArea.scrollHeight; // Auto-scroll
         }
 
-        permissionButton.addEventListener('click', requestSensorPermissions);
-        captureButton.addEventListener('click', toggleCapture);
-
-        async function requestSensorPermissions() {
-            log('Attempting to request sensor permissions...');
-            if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
-                try {
-                    const motionPermission = await DeviceMotionEvent.requestPermission();
-                    if (motionPermission === 'granted') {
-                        log('DeviceMotionEvent permission granted.');
-                         // iOS 13.3+ may not require DeviceOrientationEvent separately if DeviceMotionEvent is granted
-                        if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-                           try {
-                            const orientationPermission = await DeviceOrientationEvent.requestPermission();
-                            if (orientationPermission === 'granted') {
-                                log('DeviceOrientationEvent permission granted.');
-                            } else {
-                                log('DeviceOrientationEvent permission denied. Gyroscope data might be limited or unavailable.', 'warning');
-                            }
-                           } catch (orientError) {
-                                log('Could not request DeviceOrientationEvent permission: ' + orientError.message, 'warning');
-                           }
-                        }
-                        permissionGranted = true;
-                        captureButton.disabled = false;
-                        document.querySelectorAll('.filter-button').forEach(btn => btn.disabled = false);
-                        permissionButton.disabled = true;
-                        permissionButton.textContent = 'Permissions Granted';
-                        log('Sensor permissions granted.');
-                        initCharts(); 
-                    } else {
-                        log('DeviceMotionEvent permission denied.', 'error');
-                        alert('DeviceMotionEvent permission denied. This app needs it to function.');
-                    }
-                } catch (error) {
-                    log(`Error requesting permissions: ${error.message}`, 'error');
-                    if (navigator.userAgent.toLowerCase().indexOf('iphone') === -1 &&
-                        navigator.userAgent.toLowerCase().indexOf('ipad') === -1) {
-                        log('Assuming permissions are implicitly granted on non-iOS device or API not needed.');
-                        permissionGranted = true;
-                        captureButton.disabled = false;
-                        document.querySelectorAll('.filter-button').forEach(btn => btn.disabled = false);
-                        permissionButton.disabled = true;
-                        permissionButton.textContent = 'Permissions Assumed (Non-iOS)';
-                        initCharts();
-                    } else {
-                         alert('Error requesting sensor permissions. Make sure you are on HTTPS.');
-                    }
-                }
-            } else {
-                log('DeviceMotionEvent.requestPermission API not found. Assuming permissions are implicitly granted (e.g., on Android/Desktop Chrome).');
-                permissionGranted = true;
-                captureButton.disabled = false;
-                document.querySelectorAll('.filter-button').forEach(btn => btn.disabled = false);
-                permissionButton.disabled = true;
-                permissionButton.textContent = 'Permissions Assumed';
-                initCharts(); 
-            }
-        }
-
-        function handleDeviceMotion(event) {
-            if (!isCapturing) return;
-
-            const now = performance.now();
-            if (firstTimestamp === 0) firstTimestamp = now;
-            const timeElapsedMs = now - firstTimestamp;
-
-            if (event.accelerationIncludingGravity) {
-                rawSensorData.accel.t.push(timeElapsedMs);
-                rawSensorData.accel.x.push(event.accelerationIncludingGravity.x || 0);
-                rawSensorData.accel.y.push(event.accelerationIncludingGravity.y || 0);
-                rawSensorData.accel.z.push(event.accelerationIncludingGravity.z || 0);
-                // Trim arrays
-                if (rawSensorData.accel.t.length > MAX_DATA_POINTS_CHART * 2) { // Keep a bit more for filtering needs
-                    rawSensorData.accel.t.splice(0, rawSensorData.accel.t.length - MAX_DATA_POINTS_CHART * 2);
-                    rawSensorData.accel.x.splice(0, rawSensorData.accel.x.length - MAX_DATA_POINTS_CHART * 2);
-                    rawSensorData.accel.y.splice(0, rawSensorData.accel.y.length - MAX_DATA_POINTS_CHART * 2);
-                    rawSensorData.accel.z.splice(0, rawSensorData.accel.z.length - MAX_DATA_POINTS_CHART * 2);
-                }
-            }
-
-            if (event.rotationRate) { 
-                rawSensorData.gyro.t.push(timeElapsedMs); 
-                rawSensorData.gyro.x.push(event.rotationRate.alpha || 0); 
-                rawSensorData.gyro.y.push(event.rotationRate.beta || 0);  
-                rawSensorData.gyro.z.push(event.rotationRate.gamma || 0); 
-                if (rawSensorData.gyro.t.length > MAX_DATA_POINTS_CHART * 2) {
-                    rawSensorData.gyro.t.splice(0, rawSensorData.gyro.t.length - MAX_DATA_POINTS_CHART * 2);
-                    rawSensorData.gyro.x.splice(0, rawSensorData.gyro.x.length - MAX_DATA_POINTS_CHART * 2);
-                    rawSensorData.gyro.y.splice(0, rawSensorData.gyro.y.length - MAX_DATA_POINTS_CHART * 2);
-                    rawSensorData.gyro.z.splice(0, rawSensorData.gyro.z.length - MAX_DATA_POINTS_CHART * 2);
-                }
-            }
-            
-            // Calculate effective sample rate (using gyro timestamps as primary)
-            if (rawSensorData.gyro.t.length > 1) {
-                const durationSeconds = (rawSensorData.gyro.t[rawSensorData.gyro.t.length - 1] - rawSensorData.gyro.t[0]) / 1000;
-                if (durationSeconds > 0) {
-                    currentSampleRate = (rawSensorData.gyro.t.length - 1) / durationSeconds;
-                }
-            } else if (rawSensorData.accel.t.length > 1) { // Fallback to accel if no gyro
-                 const durationSeconds = (rawSensorData.accel.t[rawSensorData.accel.t.length - 1] - rawSensorData.accel.t[0]) / 1000;
-                if (durationSeconds > 0) {
-                    currentSampleRate = (rawSensorData.accel.t.length - 1) / durationSeconds;
-                }
-            }
-
-
-            chartUpdateThrottle++;
-            if (chartUpdateThrottle % CHART_UPDATE_INTERVAL === 0) {
-                updateAllCharts();
-                if (currentSampleRate > 0) {
-                    effectiveSampleRateP.textContent = `Effective Sample Rate: ${currentSampleRate.toFixed(1)} Hz`;
-                }
-            }
-        }
-        
-        function toggleCapture() {
-            if (!permissionGranted) {
-                log('Sensor permissions not granted.', 'error');
-                alert('Please grant sensor permissions first.');
-                return;
-            }
-
-            isCapturing = !isCapturing;
-            if (isCapturing) {
-                captureButton.textContent = 'Stop Data Capture';
-                statusDiv.textContent = 'Status: Capturing...';
-                log('Data capture started.');
-                
-                // Reset data
-                rawSensorData = {
-                    gyro: { t: [], x: [], y: [], z: [] },
-                    accel: { t: [], x: [], y: [], z: [] }
-                };
-                firstTimestamp = 0;
-                currentSampleRate = 0;
-                effectiveSampleRateP.textContent = `Effective Sample Rate: -- Hz`;
-
-                resetAllChartsData(); // Clear data from charts before starting new capture
-
-                window.addEventListener('devicemotion', handleDeviceMotion, true);
-            } else {
-                captureButton.textContent = 'Start Data Capture';
-                statusDiv.textContent = 'Status: Stopped. Data displayed.';
-                log('Data capture stopped.');
-                window.removeEventListener('devicemotion', handleDeviceMotion, true);
-            }
-        }
-        
-        function applyEMALowPassFilter(signal, sampleRate) {
-            if (!signal || signal.length === 0 || sampleRate <= 0) return signal;
-
-            const dt = 1 / sampleRate;
-            const RC = 1 / (2 * Math.PI * LOW_PASS_CUTOFF_HZ);
-            const alpha = dt / (RC + dt);
-            
-            let filteredSignal = [signal[0]];
-            for (let i = 1; i < signal.length; i++) {
-                filteredSignal[i] = alpha * signal[i] + (1 - alpha) * filteredSignal[i-1];
-            }
-            return filteredSignal;
-        }
-
-        function createChart(canvasId, label, yAxisLabel) {
+        function createChart(canvasId, label) {
             const ctx = document.getElementById(canvasId).getContext('2d');
             return new Chart(ctx, {
                 type: 'line',
                 data: {
-                    labels: [], // timestamps
+                    labels: [],
                     datasets: [{
                         label: label,
                         data: [],
-                        borderColor: '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6,'0'), // Random color
-                        fill: false,
-                        borderWidth: 1.5
+                        borderColor: 'rgb(75, 192, 192)',
+                        tension: 0.1,
+                        fill: false
                     }]
                 },
                 options: {
                     responsive: true,
-                    maintainAspectRatio: false,
+                    maintainAspectRatio: true,
                     scales: {
-                        x: { 
-                            type: 'linear', 
-                            title: { display: true, text: 'Time (ms since start)' },
-                            ticks: {
-                                callback: function(value, index, values) {
-                                    return value.toFixed(0); // Format x-axis ticks
-                                }
-                            }
+                        x: {
+                            display: true,
+                            title: { display: false, text: 'Time' }
                         },
-                        y: { title: { display: true, text: yAxisLabel } }
+                        y: {
+                            display: true,
+                            title: { display: false, text: 'Value' }
+                        }
                     },
-                    animation: false,
-                    elements: {
-                        point: { radius: 0 }, 
-                        line: { tension: 0.1 } 
+                    animation: {
+                        duration: 0 // Disable animation for real-time updates
+                    },
+                     plugins: {
+                        legend: { display: false } // Hide legend as title is clear
                     }
                 }
             });
         }
 
-        function initCharts() {
-            charts.gyroX = createChart('gyroXChart', 'Raw Gyro X (Alpha)', 'rad/s');
-            charts.gyroY = createChart('gyroYChart', 'Raw Gyro Y (Beta)', 'rad/s');
-            charts.gyroZ = createChart('gyroZChart', 'Raw Gyro Z (Gamma)', 'rad/s');
-            charts.accelX = createChart('accelXChart', 'Raw Accel X', 'm/s²');
-            charts.accelY = createChart('accelYChart', 'Raw Accel Y', 'm/s²');
-            charts.accelZ = createChart('accelZChart', 'Raw Accel Z', 'm/s²');
-
-            // Initialize filter states and attach event listeners to filter buttons
-            document.querySelectorAll('.filter-button').forEach(button => {
-                const axisKey = button.dataset.axis; // e.g., "gyroX", "accelY"
-                filterStates[axisKey] = false; // Initially, no filter applied
-                button.addEventListener('click', () => toggleFilter(axisKey, button));
-            });
-            log('Charts initialized.');
+        function initializeCharts() {
+            charts.accelX = createChart('accelXChart', 'Accel X');
+            charts.accelY = createChart('accelYChart', 'Accel Y');
+            charts.accelZ = createChart('accelZChart', 'Accel Z');
+            charts.gyroAlpha = createChart('gyroAlphaChart', 'Gyro Alpha');
+            charts.gyroBeta = createChart('gyroBetaChart', 'Gyro Beta');
+            charts.gyroGamma = createChart('gyroGammaChart', 'Gyro Gamma');
+            logMessage('Charts initialized.');
         }
 
-        function toggleFilter(axisKey, button) {
-            if (currentSampleRate <=0 && (rawSensorData.gyro.t.length > 1 || rawSensorData.accel.t.length > 1)) {
-                log('Sample rate not yet determined or is zero. Cannot apply filter.', 'warning');
-                // Attempt to calculate it once more if data exists
-                if (rawSensorData.gyro.t.length > 1) {
-                    const durationSeconds = (rawSensorData.gyro.t[rawSensorData.gyro.t.length - 1] - rawSensorData.gyro.t[0]) / 1000;
-                    if (durationSeconds > 0) currentSampleRate = (rawSensorData.gyro.t.length - 1) / durationSeconds;
-                } else if (rawSensorData.accel.t.length > 1) {
-                    const durationSeconds = (rawSensorData.accel.t[rawSensorData.accel.t.length - 1] - rawSensorData.accel.t[0]) / 1000;
-                    if (durationSeconds > 0) currentSampleRate = (rawSensorData.accel.t.length - 1) / durationSeconds;
-                }
-                if(currentSampleRate <=0) {
-                    alert('Sample rate is zero or undetermined. Cannot apply filter yet. Ensure data is capturing.');
-                    return;
-                }
-            } else if (currentSampleRate <=0) {
-                 alert('Sample rate is zero or undetermined. Cannot apply filter yet. Ensure data is capturing.');
-                 return;
+        function lowPassFilter(newValue, previousValue, alpha) {
+            return alpha * newValue + (1 - alpha) * previousValue;
+        }
+
+        function updateData(key, rawValue) {
+            const dataObj = sensorData[key];
+            
+            // Store raw value
+            dataObj.raw.push(rawValue);
+            if (dataObj.raw.length > MAX_DATA_POINTS) {
+                dataObj.raw.shift();
             }
 
-
-            filterStates[axisKey] = !filterStates[axisKey];
-            button.textContent = filterStates[axisKey] ? 'Show Raw Data' : 'Apply Filter';
-            log(`${filterStates[axisKey] ? 'Applied' : 'Removed'} filter for ${axisKey}. Sample rate: ${currentSampleRate.toFixed(1)} Hz`);
-            updateSpecificChart(axisKey);
-        }
-        
-        function resetAllChartsData() {
-            for (const key in charts) {
-                if (charts[key]) {
-                    charts[key].data.labels = [];
-                    charts[key].data.datasets[0].data = [];
-                    charts[key].update('none');
-                }
-            }
-        }
-
-        function updateAllCharts() {
-            for (const axisKey in charts) {
-                 updateSpecificChart(axisKey);
-            }
-        }
-
-        function updateSpecificChart(axisKey) {
-            const chart = charts[axisKey];
-            if (!chart) return;
-
-            let sensorType, dataAxis, rawDataArray, timeArray, baseLabel;
-
-            if (axisKey.startsWith('gyro')) {
-                sensorType = 'gyro';
-                dataAxis = axisKey.substring(4).toLowerCase(); // X, Y, Z -> x, y, z
-                baseLabel = `Gyro ${dataAxis.toUpperCase()}`;
-            } else if (axisKey.startsWith('accel')) {
-                sensorType = 'accel';
-                dataAxis = axisKey.substring(5).toLowerCase();
-                baseLabel = `Accel ${dataAxis.toUpperCase()}`;
+            let displayValue = rawValue;
+            if (dataObj.lpfActive) {
+                const filteredValue = lowPassFilter(rawValue, dataObj.lastFiltered, LPF_ALPHA);
+                dataObj.lastFiltered = filteredValue;
+                displayValue = filteredValue; // Display filtered value if LPF is active
             } else {
-                return; // Should not happen
-            }
-
-            rawDataArray = rawSensorData[sensorType][dataAxis];
-            timeArray = rawSensorData[sensorType].t;
-
-            // Ensure we have consistent lengths (can happen if one sensor provides data faster initially)
-            const N = Math.min(rawDataArray.length, timeArray.length);
-            const displayData = rawDataArray.slice(-MAX_DATA_POINTS_CHART, N);
-            const displayTimes = timeArray.slice(-MAX_DATA_POINTS_CHART, N);
-
-            let dataForChart = displayData;
-            let currentLabel = `Raw ${baseLabel}`;
-
-            if (filterStates[axisKey] && currentSampleRate > 0 && displayData.length > 1) {
-                // Get more data for filtering to avoid edge effects on the visible part
-                const filterInputData = rawDataArray.slice(-MAX_DATA_POINTS_CHART - 20, N); // get last N points
-                if (filterInputData.length > 1) {
-                    let filtered = applyEMALowPassFilter(filterInputData, currentSampleRate);
-                    dataForChart = filtered.slice(-displayData.length); // take the relevant end part
-                    currentLabel = `Filtered ${baseLabel} (LPF ${LOW_PASS_CUTOFF_HZ}Hz)`;
-                } else {
-                    log(`Not enough data points (${filterInputData.length}) for ${axisKey} to filter. Showing raw.`, 'warning');
-                }
-            } else if (filterStates[axisKey] && (currentSampleRate <= 0 || displayData.length <= 1)) {
-                log(`Cannot apply filter to ${axisKey}: sample rate ${currentSampleRate.toFixed(1)}Hz or insufficient data (${displayData.length}). Showing raw.`, 'warning');
+                dataObj.lastFiltered = rawValue; // Reset lastFiltered if LPF is off or just turned off
             }
             
-            chart.data.labels = displayTimes;
-            chart.data.datasets[0].data = dataForChart;
-            chart.data.datasets[0].label = currentLabel;
-            chart.update('none'); 
+            // The chart always shows data from the 'filtered' array conceptually,
+            // but it's populated with raw OR LPF-processed data.
+            dataObj.filtered.push(displayValue);
+             if (dataObj.filtered.length > MAX_DATA_POINTS) {
+                dataObj.filtered.shift();
+            }
         }
 
+        function updateCharts() {
+            if (labels.length > MAX_DATA_POINTS) {
+                labels.shift();
+            }
 
-        // Initial log message
-        log('App initialized. Please request sensor permissions.');
-        // Auto-attempt for non-iOS if permission API not present
-        if (typeof DeviceMotionEvent.requestPermission !== 'function' &&
-            (navigator.userAgent.toLowerCase().indexOf('iphone') === -1 &&
-             navigator.userAgent.toLowerCase().indexOf('ipad') === -1)) {
-            log('Attempting to enable sensors for non-iOS/non-permission API environment.');
-            permissionGranted = true;
-            captureButton.disabled = false;
-            document.querySelectorAll('.filter-button').forEach(btn => btn.disabled = false);
-            permissionButton.disabled = true;
-            permissionButton.textContent = 'Permissions Assumed (Non-iOS)';
-            initCharts();
+            Object.keys(charts).forEach(key => {
+                charts[key].data.labels = labels;
+                charts[key].data.datasets[0].data = sensorData[key].filtered;
+                charts[key].update();
+            });
         }
+
+        function handleDeviceMotion(event) {
+            const acc = event.accelerationIncludingGravity;
+            const rot = event.rotationRate;
+            const now = new Date().toLocaleTimeString().split(" ")[0]; // Just time for labels
+
+            if (labels.length === 0 || labels[labels.length -1] !== now) {
+                 labels.push(now);
+            }
+
+
+            if (acc) {
+                updateData('accelX', acc.x || 0);
+                updateData('accelY', acc.y || 0);
+                updateData('accelZ', acc.z || 0);
+            }
+            if (rot) {
+                updateData('gyroAlpha', rot.alpha || 0); // Z
+                updateData('gyroBeta', rot.beta || 0);   // X
+                updateData('gyroGamma', rot.gamma || 0); // Y
+            }
+            updateCharts();
+            // logMessage(`Motion: A(${acc.x.toFixed(2)}, ${acc.y.toFixed(2)}, ${acc.z.toFixed(2)}) G(${rot.alpha.toFixed(2)}, ${rot.beta.toFixed(2)}, ${rot.gamma.toFixed(2)})`); // Too spammy
+        }
+
+        function setupFilterButton(buttonId, dataKey) {
+            const button = document.getElementById(buttonId);
+            button.addEventListener('click', () => {
+                sensorData[dataKey].lpfActive = !sensorData[dataKey].lpfActive;
+                button.textContent = sensorData[dataKey].lpfActive ? 'LPF Active (Click to Deactivate)' : 'Apply LPF';
+                button.classList.toggle('active', sensorData[dataKey].lpfActive);
+                logMessage(`${dataKey} LPF ${sensorData[dataKey].lpfActive ? 'activated' : 'deactivated'}.`);
+                // When LPF is toggled, we might want to clear the filtered history or re-calculate
+                // For simplicity, it will only affect new data points.
+                // Reset lastFiltered to current raw if turning off LPF or to avoid jump
+                if (!sensorData[dataKey].lpfActive && sensorData[dataKey].raw.length > 0) {
+                     sensorData[dataKey].lastFiltered = sensorData[dataKey].raw[sensorData[dataKey].raw.length - 1];
+                }
+            });
+        }
+
+        function requestMotionPermission() {
+            logMessage('Attempting to request motion sensor permission...');
+            if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+                // iOS 13+
+                DeviceMotionEvent.requestPermission()
+                    .then(permissionState => {
+                        if (permissionState === 'granted') {
+                            logMessage('Motion sensor permission granted.');
+                            window.addEventListener('devicemotion', handleDeviceMotion);
+                            permissionSection.classList.add('hidden');
+                            mainContent.classList.remove('hidden');
+                        } else {
+                            logMessage('Motion sensor permission denied by user.', 'error');
+                            alert('Permission denied. Motion sensor data will not be available.');
+                        }
+                    })
+                    .catch(error => {
+                        logMessage(`Error requesting motion permission: ${error}`, 'error');
+                        console.error(error);
+                        alert('An error occurred while requesting permission.');
+                    });
+            } else if (typeof DeviceMotionEvent !== 'undefined') {
+                // Non-iOS 13+ browsers or Android
+                logMessage('DeviceMotionEvent available (no specific permission needed or already granted).');
+                window.addEventListener('devicemotion', handleDeviceMotion);
+                permissionSection.classList.add('hidden');
+                mainContent.classList.remove('hidden');
+            } else {
+                logMessage('DeviceMotionEvent API not supported on this browser.', 'error');
+                alert('Device Motion API not supported. This app will not work.');
+            }
+        }
+
+        // Initialization
+        window.addEventListener('load', () => {
+            logMessage('App loaded.');
+            initializeCharts();
+
+            requestPermissionButton.addEventListener('click', requestMotionPermission);
+
+            // Setup filter buttons
+            setupFilterButton('filterAccelXButton', 'accelX');
+            setupFilterButton('filterAccelYButton', 'accelY');
+            setupFilterButton('filterAccelZButton', 'accelZ');
+            setupFilterButton('filterGyroAlphaButton', 'gyroAlpha');
+            setupFilterButton('filterGyroBetaButton', 'gyroBeta');
+            setupFilterButton('filterGyroGammaButton', 'gyroGamma');
+
+            // Check if running as PWA (iOS)
+            if (window.navigator.standalone === true) {
+                logMessage('Running in PWA mode (iOS).');
+            }
+
+            // For testing in browsers that don't require explicit permission or for older iOS.
+            // But typically, the button click is the standard way now.
+            // if (! (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function')) {
+            //    requestMotionPermission(); // Auto-try if no explicit request function
+            // }
+        });
+
     </script>
 </body>
 </html>
