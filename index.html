@@ -2,202 +2,326 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Breathing & Approx. Pulse Rate (Accel X)</title>
+    <title>Relax</title> <!-- Renamed -->
 
-    <!-- Apple Web App Meta Tags -->
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black"> <!-- Dark status bar -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
+        :root {
+            --bg-color: #1e1e1e;
+            --text-color: #e0e0e0;
+            --primary-color: #4CAF50; /* Greenish for relaxation */
+            --secondary-color: #333333;
+            --accent-color: #76FF03; /* Lighter green for accents */
+            --slider-thumb-color: var(--primary-color);
+            --slider-track-color: #555;
+            --circle-base-color: #282828;
+            --circle-border-color: var(--primary-color);
+        }
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
             margin: 0;
-            padding: 10px;
-            background-color: #f0f0f0;
-            color: #333;
+            padding: 0; /* Full screen */
+            background-color: var(--bg-color);
+            color: var(--text-color);
             overscroll-behavior-y: contain;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center; /* Center content vertically */
+            height: 100vh; /* Full viewport height */
+            overflow: hidden; /* Prevent scrollbars */
         }
+
         .container {
             display: flex;
             flex-direction: column;
-            gap: 15px;
-        }
-        .info-display, .rate-display {
-            text-align: center;
+            align-items: center;
+            justify-content: space-around; /* Distribute space */
+            width: 100%;
+            height: 100%;
             padding: 10px;
-            background-color: #fff;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            font-size: 1.2em;
-            font-weight: bold;
-        }
-        .rate-display-container {
-            display: flex;
-            justify-content: space-around;
-            gap: 10px;
-            margin-bottom: 10px;
-        }
-        .rate-display {
-            flex: 1;
-        }
-        .settings-section {
-            padding: 10px;
-            background-color: #fff;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            margin-bottom: 5px; /* Reduced margin */
-        }
-        .settings-group {
-            margin-bottom: 10px;
-        }
-        .settings-group label {
-            display: block; /* Make label take full width */
-            margin-bottom: 3px;
-            font-size: 0.9em;
-        }
-        .settings-group input[type="range"] {
-            width: 80%;
-            margin-right: 10px;
-        }
-        .settings-group span { /* For displaying slider value */
-            font-size: 0.9em;
-            min-width: 40px;
-            display: inline-block;
+            box-sizing: border-box;
         }
 
-        .permission-section, .calibration-notice {
+        .main-content-area {
+            display: flex;
+            align-items: center; /* Vertically align sliders and circle */
+            justify-content: center; /* Center circle horizontally */
+            width: 100%;
+            flex-grow: 1; /* Allow this area to take up space */
+            position: relative; /* For absolute positioning of sliders */
+        }
+
+        .slider-column {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center; /* Center sliders vertically in their column */
+            padding: 0 15px; /* Space from circle */
+            height: 70vh; /* Make sliders take up good portion of height */
+            max-height: 400px;
+        }
+
+        .slider-column.left {
+            position: absolute;
+            left: 10px; /* Adjust as needed */
+            top: 50%;
+            transform: translateY(-50%);
+        }
+        .slider-column.right {
+            position: absolute;
+            right: 10px; /* Adjust as needed */
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+
+        .settings-group {
+            display: flex;
+            flex-direction: column; /* Label above slider */
+            align-items: center;
+            margin-bottom: 20px; /* Space between sliders in a column */
             text-align: center;
-            padding: 20px;
-            background-color: #fff;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            margin-bottom: 15px;
         }
-        .chart-container {
-            background-color: #fff;
-            padding: 15px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            margin-top: 10px;
+        .settings-group label {
+            font-size: 0.8em;
+            margin-bottom: 8px;
+            color: var(--text-color);
+            white-space: nowrap;
         }
-        .chart-container h3 { margin-top: 0; margin-bottom: 10px; font-size: 1.2em; text-align: center; }
-        .logs { margin-top: 20px; background-color: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .logs h3 { margin-top: 0; }
-        .log-area { max-height: 100px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; font-size: 0.8em; background-color: #f9f9f9; white-space: pre-wrap; }
-        .log-entry.error { color: red; font-weight: bold; }
-        .log-entry.warn { color: orange; }
-        .log-entry.success { color: green; }
-        .log-entry.pulse { color: dodgerblue; }
+        .settings-group input[type="range"] {
+            writing-mode: bt-lr; /* IE */
+            -webkit-appearance: slider-vertical; /* WebKit */
+            width: 8px; /* Width of the vertical slider track */
+            height: 150px; /* Height of the vertical slider */
+            padding: 0 5px;
+            background: transparent; /* Otherwise white in Chrome */
+        }
+        /* Custom Slider Styles (basic) */
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: var(--slider-thumb-color);
+            cursor: pointer;
+            border-radius: 50%;
+            margin-top: -6px; /* Adjust for thumb centering */
+        }
+        input[type=range]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: var(--slider-thumb-color);
+            cursor: pointer;
+            border-radius: 50%;
+            border: none;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 8px;
+            height: 100%;
+            cursor: pointer;
+            background: var(--slider-track-color);
+            border-radius: 3px;
+        }
+        input[type=range]::-moz-range-track {
+            width: 8px;
+            height: 100%;
+            cursor: pointer;
+            background: var(--slider-track-color);
+            border-radius: 3px;
+        }
+
+
+        .circle-container {
+            position: relative; /* For positioning text inside */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            /* Let flexbox in main-content-area handle centering for now */
+        }
+
+        #breathingCircle {
+            border-radius: 50%;
+            background-color: var(--circle-base-color);
+            border: 3px solid var(--circle-border-color);
+            transition: width 0.1s ease-out, height 0.1s ease-out; /* Smooth size change */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.3);
+        }
+
+        .circle-content {
+            color: var(--text-color);
+            font-weight: bold;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #permissionButton {
+            background-color: var(--primary-color);
+            color: var(--bg-color);
+            border: none;
+            padding: 15px 25px;
+            border-radius: 25px;
+            font-size: 1.1em;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        #permissionButton:hover {
+            opacity: 0.9;
+        }
+
+        #breathRateDisplay {
+            font-size: 2.5em; /* Larger for breath rate inside circle */
+            line-height: 1;
+        }
+        #breathRateLabel {
+            font-size: 0.7em;
+            opacity: 0.8;
+        }
+
+
+        .heart-rate-info {
+            text-align: center;
+            margin-top: 20px; /* Space below the circle area */
+            font-size: 1.2em;
+            font-weight: bold;
+            color: var(--accent-color);
+        }
+
+        /* Hidden initially */
+        #calibrationNotice, .chart-container, .logs {
+            display: none !important;
+        }
         .hidden { display: none !important; }
+
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Breathing & Approx. Pulse Rate (Accelerometer X)</h1>
-        <p style="text-align: center;">Orient phone for X-axis. Keep VERY STILL for pulse. Uses 0.1s sampling & SG filter.</p>
-
-        <div class="rate-display-container">
-            <div id="breathRateDisplay" class="rate-display">Breathing: Waiting...</div>
-            <div id="heartRateDisplay" class="rate-display">Pulse: Waiting...</div>
-        </div>
-        <div id="currentAmplitudeDisplay" class="info-display" style="font-size: 0.9em; padding: 5px;">Last Breath Cycle Amp: N/A</div>
-
-
-        <div class="settings-section">
-            <div class="settings-group">
-                <label for="breathAmpThresholdSlider">Min Breath Amplitude: <span id="breathAmpThresholdValue">0.20</span> (m/s²)</label>
-                <input type="range" id="breathAmpThresholdSlider" min="0.01" max="1.0" step="0.01" value="0.2">
+        <div class="main-content-area">
+            <div class="slider-column left">
+                <div class="settings-group">
+                    <label for="breathAmpThresholdSlider">Breath Amp (<span id="breathAmpThresholdValue">0.20</span>)</label>
+                    <input type="range" id="breathAmpThresholdSlider" min="0.01" max="1.0" step="0.01" value="0.2">
+                </div>
             </div>
-            <div class="settings-group">
-                <label for="heartAmpThresholdSlider">Min Pulse Amplitude: <span id="heartAmpThresholdValue">0.02</span> (m/s²)</label>
-                <input type="range" id="heartAmpThresholdSlider" min="0.005" max="0.2" step="0.001" value="0.02">
+
+            <div class="circle-container">
+                <div id="breathingCircle" style="width: 150px; height: 150px;"> <!-- Initial size -->
+                    <div class="circle-content">
+                        <button id="permissionButton">Grant Access</button>
+                        <div id="breathRateDisplay" class="hidden">--</div>
+                        <div id="breathRateLabel" class="hidden">BPM</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="slider-column right">
+                <div class="settings-group">
+                    <label for="heartAmpThresholdSlider">Pulse Amp (<span id="heartAmpThresholdValue">0.020</span>)</label>
+                    <input type="range" id="heartAmpThresholdSlider" min="0.005" max="0.2" step="0.001" value="0.02">
+                </div>
             </div>
         </div>
 
+        <div id="heartRateDisplay" class="heart-rate-info">Pulse: -- BPM</div>
 
-        <div id="permissionSection" class="permission-section">
-            <p>This app requires access to your device's motion sensors.</p>
-            <button id="requestPermissionButton">Grant Motion Sensor Access</button>
-        </div>
-
-        <div id="calibrationNotice" class="calibration-notice hidden">
+        <!-- Calibration Notice (Optional, could be integrated differently) -->
+        <div id="calibrationNotice" class="hidden" style="position: absolute; bottom: 10px; width: 90%; text-align:center; background-color: rgba(0,0,0,0.7); padding: 10px; border-radius: 5px;">
             <p id="calibrationText">Initializing calibration...</p>
         </div>
 
-        <div id="mainContent" class="hidden">
-            <div class="chart-container">
-                <h3 id="chartTitle">Accelerometer X (SG Filtered, 0.1s Sampling)</h3>
-                <canvas id="sensorChart"></canvas>
-            </div>
-        </div>
-
-        <div class="logs">
+        <!-- Logs and Chart are hidden by default as per request, but JS still uses them -->
+        <div class="logs hidden">
             <h3>Event & Error Logs</h3>
-            <div id="logArea" class="log-area"></div>
+            <div id="logArea"></div>
+        </div>
+        <div class="chart-container hidden">
+            <h3 id="chartTitle">Accelerometer X</h3>
+            <canvas id="sensorChart"></canvas>
         </div>
     </div>
 
     <script>
+        // --- Constants & Global Vars ---
+        const BASE_CIRCLE_DIAMETER_PX = 150; // Initial and "zero" accel diameter
+        const CIRCLE_SCALING_FACTOR = 100;   // How much accelX affects diameter (px per m/s^2)
+                                            // Positive accelX increases diameter
+        const MAX_CIRCLE_DIAMETER_PX = 300;
+        const MIN_CIRCLE_DIAMETER_PX = 50;
+
+        // (Rest of the JS constants and variables from previous version:
+        // MAX_CHART_POINTS, SG_WINDOW_SIZE, etc. ...
+        // MIN_BREATH_AMPLITUDE_THRESHOLD, MAX_BREATH_EVENTS_FOR_RATE, etc. ...
+        // MIN_HEARTBEAT_AMPLITUDE_THRESHOLD, MAX_HEARTBEAT_EVENTS_FOR_RATE, etc. ...)
         const MAX_CHART_POINTS = 150;
-        const SG_WINDOW_SIZE = 5; // For breathing; might be too strong for pulse
+        const SG_WINDOW_SIZE = 5;
         const SG_COEFFICIENTS = [-3, 12, 17, 12, -3];
         const SG_DENOMINATOR = 35;
         const MAX_RAW_DATA_STORAGE = MAX_CHART_POINTS * 2;
-
-        const CALIBRATION_DELAY_MS = 5000;
-        const CALIBRATION_DURATION_MS = 10000;
-
+        const CALIBRATION_DELAY_MS = 3000; // Shorter for quicker start
+        const CALIBRATION_DURATION_MS = 7000;
         const TARGET_SENSOR_KEY = 'accelX';
-        const SAMPLING_INTERVAL_MS = 100; // 10 Hz
+        const SAMPLING_INTERVAL_MS = 100;
 
-        // --- Breathing Rate Detection Settings ---
-        let MIN_BREATH_AMPLITUDE_THRESHOLD = 0.10;
-        const MAX_BREATH_EVENTS_FOR_RATE = 6; // ~5 breaths
+        let MIN_BREATH_AMPLITUDE_THRESHOLD = 0.20;
+        const MAX_BREATH_EVENTS_FOR_RATE = 6;
         let lastConfirmedBreathEventTimestamps = [];
         let breathCycleState = 'EXPECTING_PEAK';
         let lastDetectedBreathPeak = { value: null, time: null };
         let lastDetectedBreathTrough = { value: null, time: null };
 
-        // --- Heart Rate (Pulse) Detection Settings ---
-        let MIN_HEARTBEAT_AMPLITUDE_THRESHOLD = 0.010; // Much smaller
-        const MAX_HEARTBEAT_EVENTS_FOR_RATE = 10; // ~9 beats
-        const MIN_HEARTBEAT_INTERVAL_MS = 300; // Approx max 200 BPM
+        let MIN_HEARTBEAT_AMPLITUDE_THRESHOLD = 0.020;
+        const MAX_HEARTBEAT_EVENTS_FOR_RATE = 10;
+        const MIN_HEARTBEAT_INTERVAL_MS = 300;
         let lastConfirmedHeartbeatTimestamps = [];
         let lastHeartbeatPeakTime = 0;
         let potentialHeartbeatPeak = {value: null, time: null};
-        let lookingForHeartbeatPeak = true; // true: look for peak, false: look for trough after peak
+        let lookingForHeartbeatPeak = true;
 
-
-        // --- Common ---
         let previousFilteredValueAccelX = null;
 
-        const logArea = document.getElementById('logArea');
+        // --- DOM Elements ---
+        const breathingCircle = document.getElementById('breathingCircle');
+        const permissionButton = document.getElementById('permissionButton');
         const breathRateDisplay = document.getElementById('breathRateDisplay');
-        const heartRateDisplay = document.getElementById('heartRateDisplay');
-        const currentAmplitudeDisplay = document.getElementById('currentAmplitudeDisplay');
-        const permissionSection = document.getElementById('permissionSection');
+        const breathRateLabel = document.getElementById('breathRateLabel'); // New for "BPM" text
+        const heartRateDisplay = document.getElementById('heartRateDisplay'); // For below circle
+
         const calibrationNotice = document.getElementById('calibrationNotice');
         const calibrationText = document.getElementById('calibrationText');
-        const mainContent = document.getElementById('mainContent');
+        // Logs and chart elements (even if hidden, JS might interact)
+        const logArea = document.getElementById('logArea');
         const chartTitle = document.getElementById('chartTitle');
+        let sensorChart; // Will be initialized if needed
 
         const breathAmpThresholdSlider = document.getElementById('breathAmpThresholdSlider');
         const breathAmpThresholdValueDisplay = document.getElementById('breathAmpThresholdValue');
         const heartAmpThresholdSlider = document.getElementById('heartAmpThresholdSlider');
         const heartAmpThresholdValueDisplay = document.getElementById('heartAmpThresholdValue');
 
-        let sensorChart;
-        let chartLabels = [];
-        let sensorData = { [TARGET_SENSOR_KEY]: { raw: [], filteredForChart: [] } }; // Removed lpfActive
-        let calibrationState = 'pending';
+        // --- App State ---
+        let sensorData = { [TARGET_SENSOR_KEY]: { raw: [], filteredForChart: [] } };
+        let calibrationState = 'pending'; // 'pending', 'delay', 'collecting', 'complete'
         let calibrationStartTimestamp;
         let tempCalibrationData = { accelX: [], accelY: [], accelZ: [], gyroAlpha: [], gyroBeta: [], gyroGamma: [] };
         let sensorZeroOffsets = { accelX: 0, accelY: 0, accelZ: 0, gyroAlpha: 0, gyroBeta: 0, gyroGamma: 0 };
         let lastSampledTime = { [TARGET_SENSOR_KEY]: 0 };
+        let chartLabels = []; // Only needed if chart is used
 
+        // --- Functions ---
         function logMessage(message, type = 'info') {
+            if (!logArea) return; // Don't try to log if element doesn't exist
             const entry = document.createElement('div');
             entry.classList.add('log-entry', type);
             entry.textContent = `[${new Date().toLocaleTimeString()}] ${type.toUpperCase()}: ${message}`;
@@ -205,117 +329,158 @@
             logArea.scrollTop = logArea.scrollHeight;
         }
 
-        function createChart(canvasId) { /* ... same ... */
-            const ctx = document.getElementById(canvasId).getContext('2d');
-            return new Chart(ctx, { type: 'line', data: { labels: [], datasets: [{ label: 'Accelerometer X (SG)', data: [], borderColor: 'rgb(255, 99, 132)', tension: 0.1, fill: false, pointRadius: 1 }] }, options: { responsive: true, maintainAspectRatio: true, scales: { x: { display: true }, y: { display: true, title: {display: true, text: 'Accel X (m/s^2)'} } }, animation: { duration: 0 }, plugins: { legend: { display: true, position: 'top' } } } });
-        }
-        function savitzkyGolaySmooth(data) { /* ... same ... */
-            const windowSize = SG_WINDOW_SIZE; const coeffs = SG_COEFFICIENTS; const denominator = SG_DENOMINATOR; const halfWindow = Math.floor(windowSize / 2); const smoothedData = []; if (data.length === 0) return []; const paddedData = []; for (let i = 0; i < halfWindow; i++) paddedData.push(data[0]); paddedData.push(...data); for (let i = 0; i < halfWindow; i++) paddedData.push(data[data.length - 1]); for (let i = 0; i < data.length; i++) { let sum = 0; for (let j = 0; j < windowSize; j++) sum += coeffs[j] * paddedData[i + j]; smoothedData.push(sum / denominator); } return smoothedData;
+        function updateCircleDiameter(zeroAdjustedAccelX) {
+            let newDiameter = BASE_CIRCLE_DIAMETER_PX + (zeroAdjustedAccelX * CIRCLE_SCALING_FACTOR);
+            newDiameter = Math.max(MIN_CIRCLE_DIAMETER_PX, Math.min(newDiameter, MAX_CIRCLE_DIAMETER_PX));
+            breathingCircle.style.width = `${newDiameter}px`;
+            breathingCircle.style.height = `${newDiameter}px`;
         }
 
-        function calculateAndDisplayBreathingRate() { /* ... same ... */
-            if (lastConfirmedBreathEventTimestamps.length < 2) { breathRateDisplay.textContent = `Breathing: Wait (${lastConfirmedBreathEventTimestamps.length}/${MAX_BREATH_EVENTS_FOR_RATE})...`; return; } const sortedTimestamps = [...lastConfirmedBreathEventTimestamps].sort((a, b) => a - b); const oldestEventTime = sortedTimestamps[0]; const newestEventTime = sortedTimestamps[sortedTimestamps.length - 1]; const totalDurationSeconds = (newestEventTime - oldestEventTime) / 1000; const numberOfIntervals = sortedTimestamps.length - 1; if (totalDurationSeconds > 0 && numberOfIntervals > 0) { const breathsPerMinute = (numberOfIntervals / totalDurationSeconds) * 60; breathRateDisplay.textContent = `Breathing: ${breathsPerMinute.toFixed(1)} BPM`; } else { breathRateDisplay.textContent = "Breathing: Calc..."; }
+
+        function calculateAndDisplayBreathingRate() {
+            if (lastConfirmedBreathEventTimestamps.length < 2) {
+                breathRateDisplay.textContent = calibrationState === 'complete' ? '--' : '...';
+                return;
+            }
+            // ... (rest of calculation logic same as before) ...
+            const sortedTimestamps = [...lastConfirmedBreathEventTimestamps].sort((a, b) => a - b); const oldestEventTime = sortedTimestamps[0]; const newestEventTime = sortedTimestamps[sortedTimestamps.length - 1]; const totalDurationSeconds = (newestEventTime - oldestEventTime) / 1000; const numberOfIntervals = sortedTimestamps.length - 1; if (totalDurationSeconds > 0 && numberOfIntervals > 0) { const breathsPerMinute = (numberOfIntervals / totalDurationSeconds) * 60; breathRateDisplay.textContent = breathsPerMinute.toFixed(1); } else { breathRateDisplay.textContent = "--"; }
         }
+
         function calculateAndDisplayHeartRate() {
-            if (lastConfirmedHeartbeatTimestamps.length < 2) { heartRateDisplay.textContent = `Pulse: Wait (${lastConfirmedHeartbeatTimestamps.length}/${MAX_HEARTBEAT_EVENTS_FOR_RATE})...`; return; } const sortedTimestamps = [...lastConfirmedHeartbeatTimestamps].sort((a, b) => a - b); const oldestEventTime = sortedTimestamps[0]; const newestEventTime = sortedTimestamps[sortedTimestamps.length - 1]; const totalDurationSeconds = (newestEventTime - oldestEventTime) / 1000; const numberOfIntervals = sortedTimestamps.length - 1; if (totalDurationSeconds > 0 && numberOfIntervals > 0) { const beatsPerMinute = (numberOfIntervals / totalDurationSeconds) * 60; heartRateDisplay.textContent = `Pulse: ${beatsPerMinute.toFixed(0)} BPM`; } else { heartRateDisplay.textContent = "Pulse: Calc..."; }
+            if (lastConfirmedHeartbeatTimestamps.length < 2) {
+                heartRateDisplay.textContent = calibrationState === 'complete' ? 'Pulse: -- BPM' : 'Pulse: ...';
+                return;
+            }
+            // ... (rest of calculation logic same as before) ...
+            const sortedTimestamps = [...lastConfirmedHeartbeatTimestamps].sort((a, b) => a - b); const oldestEventTime = sortedTimestamps[0]; const newestEventTime = sortedTimestamps[sortedTimestamps.length - 1]; const totalDurationSeconds = (newestEventTime - oldestEventTime) / 1000; const numberOfIntervals = sortedTimestamps.length - 1; if (totalDurationSeconds > 0 && numberOfIntervals > 0) { const beatsPerMinute = (numberOfIntervals / totalDurationSeconds) * 60; heartRateDisplay.textContent = `Pulse: ${beatsPerMinute.toFixed(0)} BPM`; } else { heartRateDisplay.textContent = "Pulse: -- BPM"; }
         }
+
+
+        function savitzkyGolaySmooth(data) { /* ... same ... */ const windowSize = SG_WINDOW_SIZE; const coeffs = SG_COEFFICIENTS; const denominator = SG_DENOMINATOR; const halfWindow = Math.floor(windowSize / 2); const smoothedData = []; if (data.length === 0) return []; const paddedData = []; for (let i = 0; i < halfWindow; i++) paddedData.push(data[0]); paddedData.push(...data); for (let i = 0; i < halfWindow; i++) paddedData.push(data[data.length - 1]); for (let i = 0; i < data.length; i++) { let sum = 0; for (let j = 0; j < windowSize; j++) sum += coeffs[j] * paddedData[i + j]; smoothedData.push(sum / denominator); } return smoothedData; }
 
         function processSignal(currentFiltVal, prevFiltVal, sampleTime) {
             if (prevFiltVal === null) return;
-
             const trendChangedToFalling = currentFiltVal < prevFiltVal;
             const trendChangedToRising = currentFiltVal > prevFiltVal;
             const actualPrevTime = sampleTime - SAMPLING_INTERVAL_MS;
 
             // --- Breathing Detection Logic ---
             if (breathCycleState === 'EXPECTING_PEAK' && trendChangedToFalling) {
-                // Peak is prevFiltVal at actualPrevTime
                 lastDetectedBreathPeak = { value: prevFiltVal, time: actualPrevTime };
                 breathCycleState = 'EXPECTING_TROUGH';
-                 // logMessage(`Breath Peak Candidate: ${prevFiltVal.toFixed(3)}`, 'info');
             } else if (breathCycleState === 'EXPECTING_TROUGH' && trendChangedToRising) {
-                // Trough is prevFiltVal at actualPrevTime
                 lastDetectedBreathTrough = { value: prevFiltVal, time: actualPrevTime };
-                // logMessage(`Breath Trough Candidate: ${prevFiltVal.toFixed(3)}`, 'info');
-
-                if (lastDetectedBreathPeak.value !== null) { // Ensure we had a peak first
+                if (lastDetectedBreathPeak.value !== null) {
                     const amplitude = Math.abs(lastDetectedBreathPeak.value - lastDetectedBreathTrough.value);
-                    currentAmplitudeDisplay.textContent = `Last Breath Cycle Amp: ${amplitude.toFixed(3)}`;
-
+                    // currentAmplitudeDisplay.textContent = `Last Breath Cycle Amp: ${amplitude.toFixed(3)}`; // This element was removed from UI
                     if (amplitude >= MIN_BREATH_AMPLITUDE_THRESHOLD) {
-                        logMessage(`BREATH EVENT: Amp ${amplitude.toFixed(3)} >= ${MIN_BREATH_AMPLITUDE_THRESHOLD.toFixed(3)}. Trough at ${new Date(lastDetectedBreathTrough.time).toLocaleTimeString()}`, 'success');
+                        logMessage(`BREATH EVENT: Amp ${amplitude.toFixed(3)} >= ${MIN_BREATH_AMPLITUDE_THRESHOLD.toFixed(3)}`, 'success');
                         lastConfirmedBreathEventTimestamps.push(lastDetectedBreathTrough.time);
-                        if (lastConfirmedBreathEventTimestamps.length > MAX_BREATH_EVENTS_FOR_RATE) {
-                            lastConfirmedBreathEventTimestamps.shift();
-                        }
+                        if (lastConfirmedBreathEventTimestamps.length > MAX_BREATH_EVENTS_FOR_RATE) lastConfirmedBreathEventTimestamps.shift();
                         calculateAndDisplayBreathingRate();
-                    } else {
-                        // logMessage(`Rejected breath cycle: Amp ${amplitude.toFixed(3)} < ${MIN_BREATH_AMPLITUDE_THRESHOLD.toFixed(3)}`, 'warn');
                     }
                 }
-                breathCycleState = 'EXPECTING_PEAK'; // Reset for next breath cycle
+                breathCycleState = 'EXPECTING_PEAK';
                 lastDetectedBreathPeak = { value: null, time: null };
                 lastDetectedBreathTrough = { value: null, time: null };
             }
 
             // --- Heartbeat (Pulse) Detection Logic ---
-            // This runs independently but tries to find smaller, faster peaks.
-            // It's very basic and prone to noise.
-            if (lookingForHeartbeatPeak && trendChangedToFalling) { // Potential peak detected
-                 if (prevFiltVal > (potentialHeartbeatPeak.value || -Infinity)) { // If this is higher than any recent contender
+            if (lookingForHeartbeatPeak && trendChangedToFalling) {
+                 if (prevFiltVal > (potentialHeartbeatPeak.value || -Infinity)) {
                     potentialHeartbeatPeak = {value: prevFiltVal, time: actualPrevTime};
                  }
-            } else if (trendChangedToRising && potentialHeartbeatPeak.value !== null) { // Trend changed to rising after a potential peak was noted
-                // The peak was potentialHeartbeatPeak.value at potentialHeartbeatPeak.time
-                // Trough is prevFiltVal at actualPrevTime
-                const hb_amplitude = Math.abs(potentialHeartbeatPeak.value - prevFiltVal); // Peak to current trough amplitude
-
+            } else if (trendChangedToRising && potentialHeartbeatPeak.value !== null) {
+                const hb_amplitude = Math.abs(potentialHeartbeatPeak.value - prevFiltVal);
                 if (hb_amplitude >= MIN_HEARTBEAT_AMPLITUDE_THRESHOLD) {
                     if (potentialHeartbeatPeak.time - lastHeartbeatPeakTime > MIN_HEARTBEAT_INTERVAL_MS) {
-                        logMessage(`PULSE EVENT: Amp ${hb_amplitude.toFixed(4)}, Val ${potentialHeartbeatPeak.value.toFixed(4)}`, 'pulse');
+                        logMessage(`PULSE EVENT: Amp ${hb_amplitude.toFixed(4)}`, 'pulse');
                         lastConfirmedHeartbeatTimestamps.push(potentialHeartbeatPeak.time);
-                        if (lastConfirmedHeartbeatTimestamps.length > MAX_HEARTBEAT_EVENTS_FOR_RATE) {
-                            lastConfirmedHeartbeatTimestamps.shift();
-                        }
+                        if (lastConfirmedHeartbeatTimestamps.length > MAX_HEARTBEAT_EVENTS_FOR_RATE) lastConfirmedHeartbeatTimestamps.shift();
                         calculateAndDisplayHeartRate();
                         lastHeartbeatPeakTime = potentialHeartbeatPeak.time;
                     }
                 }
-                potentialHeartbeatPeak = {value: null, time: null}; // Reset for next potential heartbeat
+                potentialHeartbeatPeak = {value: null, time: null};
             }
-             if (trendChangedToRising) lookingForHeartbeatPeak = true; // always look for a new peak after a rise
-             if (trendChangedToFalling) lookingForHeartbeatPeak = false; // after a fall, we are in a trough or falling slope
-
+            if (trendChangedToRising) lookingForHeartbeatPeak = true;
+            if (trendChangedToFalling) lookingForHeartbeatPeak = false;
         }
 
-
         function processSensorDataForChart(key, zeroAdjustedValue, currentSampleTime) {
+            updateCircleDiameter(zeroAdjustedValue); // Update circle based on this value
+
             const dataObj = sensorData[key];
             dataObj.raw.push(zeroAdjustedValue);
             if (dataObj.raw.length > MAX_RAW_DATA_STORAGE) dataObj.raw.shift();
 
             const allFiltered = savitzkyGolaySmooth(dataObj.raw);
-            dataObj.filteredForChart = allFiltered.slice(-MAX_CHART_POINTS);
+            // dataObj.filteredForChart = allFiltered.slice(-MAX_CHART_POINTS); // Only if chart is visible
 
             if (key === TARGET_SENSOR_KEY && allFiltered.length >= 2) {
                 const currentFiltered = allFiltered[allFiltered.length - 1];
                 const prevFiltered = allFiltered[allFiltered.length - 2];
-                processSignal(currentFiltered, prevFiltered, currentSampleTime); // Combined processing
+                processSignal(currentFiltered, prevFiltered, currentSampleTime);
                 previousFilteredValueAccelX = currentFiltered;
             } else if (key === TARGET_SENSOR_KEY && allFiltered.length === 1) {
                 previousFilteredValueAccelX = allFiltered[0];
             }
         }
-        function updateChart() { /* ... same ... */ if (!sensorChart || calibrationState !== 'complete') return; const data = sensorData[TARGET_SENSOR_KEY].filteredForChart; const labels = chartLabels.slice(-data.length); sensorChart.data.labels = labels; sensorChart.data.datasets[0].data = data; sensorChart.update(); }
-        function handleDeviceMotion(event) { /* ... calibration largely same ... */
-            const currentTimeForEvent = Date.now(); if (calibrationState === 'pending') { calibrationStartTimestamp = currentTimeForEvent; calibrationState = 'delay'; calibrationNotice.classList.remove('hidden'); calibrationText.textContent = `Orient phone for AccelX. Calibration in ${CALIBRATION_DELAY_MS / 1000}s. Keep still.`; logMessage(`Calibration: Delay phase (${CALIBRATION_DELAY_MS / 1000}s).`); return; } const acc = event.accelerationIncludingGravity; const incomingRawValues = { accelX: acc ? acc.x || 0 : 0, accelY: acc ? acc.y || 0 : 0, accelZ: acc ? acc.z || 0 : 0, gyroAlpha: event.rotationRate ? event.rotationRate.alpha || 0 : 0, gyroBeta:  event.rotationRate ? event.rotationRate.beta || 0 : 0, gyroGamma: event.rotationRate ? event.rotationRate.gamma || 0 : 0, }; if (calibrationState === 'delay') { if (currentTimeForEvent >= calibrationStartTimestamp + CALIBRATION_DELAY_MS) { calibrationState = 'collecting'; calibrationStartTimestamp = currentTimeForEvent; calibrationText.textContent = `Calibration: Collecting AccelX data for ${CALIBRATION_DURATION_MS / 1000}s. Keep still.`; logMessage(`Calibration: Collecting data for zeroing (${CALIBRATION_DURATION_MS / 1000}s).`); } else { const timeLeft = Math.round((calibrationStartTimestamp + CALIBRATION_DELAY_MS - currentTimeForEvent)/1000); calibrationText.textContent = `Orient phone for AccelX. Calibration in ${timeLeft}s. Keep still.`; return; } } if (calibrationState === 'collecting') { Object.keys(incomingRawValues).forEach(calibKey => { if (tempCalibrationData[calibKey]) tempCalibrationData[calibKey].push(incomingRawValues[calibKey]); }); if (currentTimeForEvent >= calibrationStartTimestamp + CALIBRATION_DURATION_MS) { calibrationState = 'complete'; calibrationText.textContent = 'Calibration complete! Monitoring AccelX.'; logMessage('Calibration: Data collection complete. Calculating zero offsets...'); Object.keys(sensorZeroOffsets).forEach(calibKey => { if (tempCalibrationData[calibKey] && tempCalibrationData[calibKey].length > 0) { const sum = tempCalibrationData[calibKey].reduce((s, v) => s + v, 0); sensorZeroOffsets[calibKey] = sum / tempCalibrationData[calibKey].length; logMessage(`Zero offset for ${calibKey}: ${sensorZeroOffsets[calibKey].toFixed(4)}`); } else { sensorZeroOffsets[calibKey] = 0; logMessage(`No calib data for ${calibKey}`, 'warn'); } if (tempCalibrationData[calibKey]) tempCalibrationData[calibKey] = []; }); logMessage(`Calibration complete. Plotting ${TARGET_SENSOR_KEY}.`); sensorData[TARGET_SENSOR_KEY].raw = []; sensorData[TARGET_SENSOR_KEY].filteredForChart = []; chartLabels = []; lastSampledTime[TARGET_SENSOR_KEY] = 0; previousFilteredValueAccelX = null; breathCycleState = 'EXPECTING_PEAK'; lastDetectedBreathPeak = { value: null, time: null }; lastDetectedBreathTrough = { value: null, time: null }; lastConfirmedBreathEventTimestamps = []; lastConfirmedHeartbeatTimestamps = []; lastHeartbeatPeakTime = 0; potentialHeartbeatPeak = {value: null, time: null}; lookingForHeartbeatPeak = true; calculateAndDisplayBreathingRate(); calculateAndDisplayHeartRate(); setTimeout(() => calibrationNotice.classList.add('hidden'), 3000); mainContent.classList.remove('hidden'); } else { const timeLeft = Math.round((calibrationStartTimestamp + CALIBRATION_DURATION_MS - currentTimeForEvent)/1000); calibrationText.textContent = `Calibration: Collecting AccelX data... ${timeLeft}s remaining. Keep still.`; return; } } if (calibrationState === 'complete') { if (currentTimeForEvent >= (lastSampledTime[TARGET_SENSOR_KEY] || 0) + SAMPLING_INTERVAL_MS) { if (incomingRawValues.hasOwnProperty(TARGET_SENSOR_KEY)) { const currentSampleTime = currentTimeForEvent; lastSampledTime[TARGET_SENSOR_KEY] = currentSampleTime; const zeroAdjustedValue = incomingRawValues[TARGET_SENSOR_KEY] - (sensorZeroOffsets[TARGET_SENSOR_KEY] || 0); processSensorDataForChart(TARGET_SENSOR_KEY, zeroAdjustedValue, currentSampleTime); const nowLabel = new Date(currentSampleTime).toLocaleTimeString().split(" ")[0]; if (chartLabels.length >= MAX_CHART_POINTS) chartLabels.shift(); chartLabels.push(nowLabel); updateChart(); } } }
+
+        function handleDeviceMotion(event) {
+            const currentTimeForEvent = Date.now();
+            if (calibrationState === 'pending') {
+                calibrationStartTimestamp = currentTimeForEvent;
+                calibrationState = 'delay';
+                calibrationNotice.classList.remove('hidden'); // Show calibration notice
+                calibrationText.textContent = `Calibrating... Keep Still (${CALIBRATION_DELAY_MS / 1000}s)`;
+                logMessage(`Calibration: Delay phase (${CALIBRATION_DELAY_MS / 1000}s).`);
+                return;
+            }
+            // ... (rest of calibration and data processing logic same as before,
+            // ensure logMessage is used, and UI updates are appropriate for new layout) ...
+
+            const acc = event.accelerationIncludingGravity; const incomingRawValues = { accelX: acc ? acc.x || 0 : 0, accelY: acc ? acc.y || 0 : 0, accelZ: acc ? acc.z || 0 : 0, gyroAlpha: event.rotationRate ? event.rotationRate.alpha || 0 : 0, gyroBeta:  event.rotationRate ? event.rotationRate.beta || 0 : 0, gyroGamma: event.rotationRate ? event.rotationRate.gamma || 0 : 0, }; if (calibrationState === 'delay') { if (currentTimeForEvent >= calibrationStartTimestamp + CALIBRATION_DELAY_MS) { calibrationState = 'collecting'; calibrationStartTimestamp = currentTimeForEvent; calibrationText.textContent = `Collecting Data...(${CALIBRATION_DURATION_MS / 1000}s)`; logMessage(`Calibration: Collecting data (${CALIBRATION_DURATION_MS / 1000}s).`); } else { const timeLeft = Math.round((calibrationStartTimestamp + CALIBRATION_DELAY_MS - currentTimeForEvent)/1000); calibrationText.textContent = `Calibrating... ${timeLeft}s`; return; } } if (calibrationState === 'collecting') { Object.keys(incomingRawValues).forEach(calibKey => { if (tempCalibrationData[calibKey]) tempCalibrationData[calibKey].push(incomingRawValues[calibKey]); }); if (currentTimeForEvent >= calibrationStartTimestamp + CALIBRATION_DURATION_MS) { calibrationState = 'complete'; calibrationText.textContent = 'Calibration Complete!'; logMessage('Calibration: Complete.'); Object.keys(sensorZeroOffsets).forEach(calibKey => { if (tempCalibrationData[calibKey] && tempCalibrationData[calibKey].length > 0) { const sum = tempCalibrationData[calibKey].reduce((s, v) => s + v, 0); sensorZeroOffsets[calibKey] = sum / tempCalibrationData[calibKey].length; } else { sensorZeroOffsets[calibKey] = 0; } if (tempCalibrationData[calibKey]) tempCalibrationData[calibKey] = []; }); sensorData[TARGET_SENSOR_KEY].raw = []; previousFilteredValueAccelX = null; breathCycleState = 'EXPECTING_PEAK'; lastDetectedBreathPeak = { value: null, time: null }; lastDetectedBreathTrough = { value: null, time: null }; lastConfirmedBreathEventTimestamps = []; lastConfirmedHeartbeatTimestamps = []; lastHeartbeatPeakTime = 0; potentialHeartbeatPeak = {value: null, time: null}; lookingForHeartbeatPeak = true; calculateAndDisplayBreathingRate(); calculateAndDisplayHeartRate(); setTimeout(() => calibrationNotice.classList.add('hidden'), 2000); } else { const timeLeft = Math.round((calibrationStartTimestamp + CALIBRATION_DURATION_MS - currentTimeForEvent)/1000); calibrationText.textContent = `Collecting Data... ${timeLeft}s`; return; } } if (calibrationState === 'complete') { if (currentTimeForEvent >= (lastSampledTime[TARGET_SENSOR_KEY] || 0) + SAMPLING_INTERVAL_MS) { if (incomingRawValues.hasOwnProperty(TARGET_SENSOR_KEY)) { const currentSampleTime = currentTimeForEvent; lastSampledTime[TARGET_SENSOR_KEY] = currentSampleTime; const zeroAdjustedValue = incomingRawValues[TARGET_SENSOR_KEY] - (sensorZeroOffsets[TARGET_SENSOR_KEY] || 0); processSensorDataForChart(TARGET_SENSOR_KEY, zeroAdjustedValue, currentSampleTime); } } }
+
         }
-        function requestMotionPermission() { /* ... same ... */ logMessage('Attempting motion sensor permission...','info'); if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') { DeviceMotionEvent.requestPermission().then(pState => { if (pState === 'granted') { logMessage('Motion permission granted.','success'); permissionSection.classList.add('hidden'); window.addEventListener('devicemotion', handleDeviceMotion, true); } else { logMessage('Motion permission denied.','error'); alert('Permission denied.'); breathRateDisplay.textContent = "Breath: NoPerm"; heartRateDisplay.textContent = "Pulse: NoPerm"; } }).catch(e => { logMessage(`Perm error: ${e.message}`,'error'); alert('Perm error: ' + e.message); breathRateDisplay.textContent = "Breath: PermErr"; heartRateDisplay.textContent = "Pulse: PermErr";}); } else if (typeof DeviceMotionEvent !== 'undefined') { logMessage('DeviceMotionEvent available (no perm needed/already granted).','info'); permissionSection.classList.add('hidden'); window.addEventListener('devicemotion', handleDeviceMotion, true); } else { logMessage('DeviceMotionEvent API not supported.','error'); alert('Device Motion API not supported.'); breathRateDisplay.textContent = "Breath: NoAPI"; heartRateDisplay.textContent = "Pulse: NoAPI"; } }
+
+        function requestMotionPermission() {
+            logMessage('Attempting motion sensor permission...', 'info');
+            if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+                DeviceMotionEvent.requestPermission().then(pState => {
+                    if (pState === 'granted') {
+                        logMessage('Motion permission granted.', 'success');
+                        permissionButton.classList.add('hidden');
+                        breathRateDisplay.classList.remove('hidden');
+                        breathRateLabel.classList.remove('hidden');
+                        window.addEventListener('devicemotion', handleDeviceMotion, true);
+                    } else {
+                        logMessage('Motion permission denied.', 'error');
+                        permissionButton.textContent = "Permission Denied";
+                    }
+                }).catch(e => {
+                    logMessage(`Perm error: ${e.message}`, 'error');
+                    permissionButton.textContent = "Error";
+                });
+            } else if (typeof DeviceMotionEvent !== 'undefined') { // For non-iOS or already granted
+                logMessage('DeviceMotionEvent available (no perm needed/already granted).', 'info');
+                permissionButton.classList.add('hidden');
+                breathRateDisplay.classList.remove('hidden');
+                breathRateLabel.classList.remove('hidden');
+                window.addEventListener('devicemotion', handleDeviceMotion, true);
+            } else {
+                logMessage('DeviceMotionEvent API not supported.', 'error');
+                permissionButton.textContent = "Not Supported";
+            }
+        }
 
         window.addEventListener('load', () => {
-            logMessage('App loaded. Adjust thresholds if needed. Keep VERY STILL for pulse.');
-            sensorChart = createChart('sensorChart');
-            chartTitle.textContent = `Accelerometer X (SG Filtered, ${SAMPLING_INTERVAL_MS / 1000}s Sampling)`;
+            logMessage('App loaded. Grant access to start.');
+            // No chart creation by default
+            // sensorChart = createChart('sensorChart');
+
+            // Initialize circle to base size
+            updateCircleDiameter(0);
 
             // Breath Threshold Slider
             breathAmpThresholdSlider.value = MIN_BREATH_AMPLITUDE_THRESHOLD;
@@ -324,29 +489,27 @@
                 MIN_BREATH_AMPLITUDE_THRESHOLD = parseFloat(event.target.value);
                 breathAmpThresholdValueDisplay.textContent = MIN_BREATH_AMPLITUDE_THRESHOLD.toFixed(2);
             });
-            breathAmpThresholdSlider.addEventListener('change', () => { // On release
-                 logMessage(`Breath Amp Threshold set to: ${MIN_BREATH_AMPLITUDE_THRESHOLD.toFixed(3)}`, 'info');
-                 lastConfirmedBreathEventTimestamps = []; calculateAndDisplayBreathingRate(); // Reset
+            breathAmpThresholdSlider.addEventListener('change', () => {
+                 logMessage(`Breath Amp Thresh: ${MIN_BREATH_AMPLITUDE_THRESHOLD.toFixed(3)}`, 'info');
+                 lastConfirmedBreathEventTimestamps = []; calculateAndDisplayBreathingRate();
             });
-
 
             // Heart Threshold Slider
             heartAmpThresholdSlider.value = MIN_HEARTBEAT_AMPLITUDE_THRESHOLD;
-            heartAmpThresholdValueDisplay.textContent = MIN_HEARTBEAT_AMPLITUDE_THRESHOLD.toFixed(3); // More precision
+            heartAmpThresholdValueDisplay.textContent = MIN_HEARTBEAT_AMPLITUDE_THRESHOLD.toFixed(3);
             heartAmpThresholdSlider.addEventListener('input', (event) => {
                 MIN_HEARTBEAT_AMPLITUDE_THRESHOLD = parseFloat(event.target.value);
                 heartAmpThresholdValueDisplay.textContent = MIN_HEARTBEAT_AMPLITUDE_THRESHOLD.toFixed(3);
             });
-             heartAmpThresholdSlider.addEventListener('change', () => { // On release
-                 logMessage(`Pulse Amp Threshold set to: ${MIN_HEARTBEAT_AMPLITUDE_THRESHOLD.toFixed(3)}`, 'info');
-                 lastConfirmedHeartbeatTimestamps = []; calculateAndDisplayHeartRate(); // Reset
+             heartAmpThresholdSlider.addEventListener('change', () => {
+                 logMessage(`Pulse Amp Thresh: ${MIN_HEARTBEAT_AMPLITUDE_THRESHOLD.toFixed(3)}`, 'info');
+                 lastConfirmedHeartbeatTimestamps = []; calculateAndDisplayHeartRate();
             });
 
+            permissionButton.addEventListener('click', requestMotionPermission);
 
-            calculateAndDisplayBreathingRate();
+            calculateAndDisplayBreathingRate(); // Show initial "--" or "..."
             calculateAndDisplayHeartRate();
-            document.getElementById('requestPermissionButton').addEventListener('click', requestMotionPermission);
-            if (window.navigator.standalone === true) logMessage('Running in PWA mode (iOS).', 'info');
         });
     </script>
 </body>
