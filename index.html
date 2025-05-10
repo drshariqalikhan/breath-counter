@@ -21,7 +21,7 @@
             --chart-grid-color: rgba(255, 255, 255, 0.1);
             --chart-line-color: var(--primary-color);
             --inhale-color: #4CAF50; /* Green for inhale */
-            --exhale-color: #FFEB3B; /* Yellow for exhale */
+            /* --exhale-color: #FFEB3B; /* Yellow for exhale - No longer used for display */
         }
 
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -116,16 +116,16 @@
         let lastHeartbeatPeakTime = 0; let potentialHeartbeatPeak = {value: null, time: null};
         let lookingForHeartbeatPeak = true; let previousFilteredValueAccelX = null;
 
-        // --- Inhale/Exhale Detection ---
-        let currentVisualBreathPhase = 'NONE'; // NONE, INHALING, EXHALING, PEAKED_INHALE
+        // --- Inhale/Exhale Detection (Now primarily Inhale Detection) ---
+        let currentVisualBreathPhase = 'NONE'; // NONE, INHALING, PEAKED_INHALE
         let lastRawAccelXForPhase = 0;
-        let recentHistoricalMaxRawAccelX = -Infinity; // Peak of the current inhale
-        let lastVisualTroughValue = 0; // Value at the bottom of the last exhalation
-        let lastVisualCycleAmplitude = 0.1; // Default/initial small amplitude (e.g. MIN_BREATH_AMPLITUDE_THRESHOLD)
+        let recentHistoricalMaxRawAccelX = -Infinity; 
+        let lastVisualTroughValue = 0; 
+        let lastVisualCycleAmplitude = 0.1; 
         const INHALE_DERIVATIVE_THRESHOLD = 0.03; 
-        const EXHALE_DERIVATIVE_THRESHOLD = -0.03; 
+        // const EXHALE_DERIVATIVE_THRESHOLD = -0.03; // No longer used for display triggering
         const HISTORICAL_MAX_RESET_THRESHOLD_FACTOR = 0.6; 
-        const INHALE_START_AMPLITUDE_FACTOR = 0.40; // Must cross 40% of last cycle's amplitude from trough
+        const INHALE_START_AMPLITUDE_FACTOR = 0.40; 
         let phaseDisplayTimeout;
 
         // --- DOM Elements ---
@@ -160,17 +160,16 @@
                     breathPhaseDisplay.textContent = "Inhale";
                     breathPhaseDisplay.style.color = getComputedStyle(document.documentElement).getPropertyValue('--inhale-color').trim();
                     break;
-                case 'EXHALING':
-                    breathPhaseDisplay.textContent = "Exhale";
-                    breathPhaseDisplay.style.color = getComputedStyle(document.documentElement).getPropertyValue('--exhale-color').trim();
-                    break;
+                // Exhale case removed
                 default: 
                     breathPhaseDisplay.textContent = "\u00A0"; 
                     breathPhaseDisplay.style.color = getComputedStyle(document.documentElement).getPropertyValue('--text-color-secondary').trim();
             }
-            if (phase !== 'NONE') {
+            if (phase === 'INHALING') { // Only set timeout for "Inhale"
                  phaseDisplayTimeout = setTimeout(() => {
-                    if (breathPhaseDisplay.textContent !== "\u00A0") {
+                    // Check if it's still "Inhale" before clearing,
+                    // in case a rapid new inhale started and reset it.
+                    if (breathPhaseDisplay.textContent === "Inhale") { 
                         updateBreathPhaseDisplay('NONE');
                     }
                 }, 1500); 
@@ -180,44 +179,39 @@
         function detectVisualBreathPhase(currentRawAccelX, previousRawAccelX) {
             const derivative = currentRawAccelX - previousRawAccelX;
 
-            if (currentVisualBreathPhase === 'NONE' || currentVisualBreathPhase === 'EXHALING') {
+            if (currentVisualBreathPhase === 'NONE') {
                 if (derivative > INHALE_DERIVATIVE_THRESHOLD &&
                     currentRawAccelX > (lastVisualTroughValue + (lastVisualCycleAmplitude * INHALE_START_AMPLITUDE_FACTOR))) {
                     currentVisualBreathPhase = 'INHALING';
                     updateBreathPhaseDisplay('INHALING');
-                    recentHistoricalMaxRawAccelX = Math.max(currentRawAccelX, recentHistoricalMaxRawAccelX); 
+                    recentHistoricalMaxRawAccelX = currentRawAccelX; 
                     logMessage(`Visual Inhale Start: Deriv ${derivative.toFixed(3)}, Val ${currentRawAccelX.toFixed(3)}, Thresh Val ${(lastVisualTroughValue + (lastVisualCycleAmplitude * INHALE_START_AMPLITUDE_FACTOR)).toFixed(3)}`, 'info');
                 }
             } 
             else if (currentVisualBreathPhase === 'INHALING') {
                 if (derivative < 0) { 
-                    currentVisualBreathPhase = 'PEAKED_INHALE';
+                    currentVisualBreathPhase = 'PEAKED_INHALE'; 
                     recentHistoricalMaxRawAccelX = Math.max(previousRawAccelX, recentHistoricalMaxRawAccelX); 
                     logMessage(`Visual Inhale Peak: Val ${previousRawAccelX.toFixed(3)}`, 'info');
                 } else { 
                     recentHistoricalMaxRawAccelX = Math.max(currentRawAccelX, recentHistoricalMaxRawAccelX);
                 }
             }
-            
-            if (currentVisualBreathPhase === 'PEAKED_INHALE' || currentVisualBreathPhase === 'INHALING') {
-                 if (derivative < EXHALE_DERIVATIVE_THRESHOLD) { 
-                    currentVisualBreathPhase = 'EXHALING';
-                    updateBreathPhaseDisplay('EXHALING');
-                    logMessage(`Visual Exhale Start: Deriv ${derivative.toFixed(3)}`, 'info');
-                }
-            } 
-            else if (currentVisualBreathPhase === 'EXHALING') {
-                if (derivative > 0) { 
-                    logMessage(`Visual Exhale Trough: Val ${previousRawAccelX.toFixed(3)}`, 'info');
+            else if (currentVisualBreathPhase === 'PEAKED_INHALE') {
+                if (derivative > 0) { // Trough reached (started to rise after falling from peak)
+                    logMessage(`Visual Trough after Inhale Peak: Val ${previousRawAccelX.toFixed(3)}`, 'info');
                     lastVisualTroughValue = previousRawAccelX; 
 
-                    if (recentHistoricalMaxRawAccelX > -Infinity && lastVisualTroughValue !== null) { 
+                    if (recentHistoricalMaxRawAccelX > -Infinity && lastVisualTroughValue !== null) {
                         lastVisualCycleAmplitude = recentHistoricalMaxRawAccelX - lastVisualTroughValue;
-                        if (lastVisualCycleAmplitude <= 0) lastVisualCycleAmplitude = MIN_BREATH_AMPLITUDE_THRESHOLD * 0.5; // Ensure positive, non-zero, smaller than main thresh
-                        logMessage(`Visual Cycle Amp: ${lastVisualCycleAmplitude.toFixed(3)} (Peak: ${recentHistoricalMaxRawAccelX.toFixed(3)}, Trough: ${lastVisualTroughValue.toFixed(3)})`, 'info');
+                        if (lastVisualCycleAmplitude <= 0) lastVisualCycleAmplitude = MIN_BREATH_AMPLITUDE_THRESHOLD * 0.5; 
+                        logMessage(`Visual Cycle Amp updated: ${lastVisualCycleAmplitude.toFixed(3)} (Peak: ${recentHistoricalMaxRawAccelX.toFixed(3)}, Trough: ${lastVisualTroughValue.toFixed(3)})`, 'info');
                     }
+
                     currentVisualBreathPhase = 'NONE'; 
-                    updateBreathPhaseDisplay('NONE');
+                    // "Inhale" display would have been set and will time out.
+                    // Or if it already timed out, display is blank. No need to call updateBreathPhaseDisplay('NONE') here
+                    // as the timeout handles clearing "Inhale", and this transition is to prepare for next inhale.
                     recentHistoricalMaxRawAccelX = -Infinity; 
                 }
             }
@@ -225,8 +219,12 @@
             if (currentRawAccelX < (recentHistoricalMaxRawAccelX * HISTORICAL_MAX_RESET_THRESHOLD_FACTOR) &&
                 currentVisualBreathPhase !== 'INHALING' && currentVisualBreathPhase !== 'PEAKED_INHALE') {
                 if (recentHistoricalMaxRawAccelX > -Infinity) {
-                    logMessage(`Resetting recentHistoricalMaxRawAccelX (${recentHistoricalMaxRawAccelX.toFixed(3)}) due to low current value (${currentRawAccelX.toFixed(3)})`, 'warn');
+                    // logMessage(`Resetting recentHistoricalMaxRawAccelX (${recentHistoricalMaxRawAccelX.toFixed(3)}) due to low current value (${currentRawAccelX.toFixed(3)})`, 'warn');
                     recentHistoricalMaxRawAccelX = -Infinity;
+                    if(currentVisualBreathPhase === 'PEAKED_INHALE') { // If it was peaked and then dropped way low
+                        currentVisualBreathPhase = 'NONE';
+                        // updateBreathPhaseDisplay('NONE'); // Optionally clear display immediately
+                    }
                 }
             }
         }
@@ -239,9 +237,11 @@
         function processSignal(currentFiltVal, prevFiltVal, sampleTime) { if (prevFiltVal === null) return; const trendChangedToFalling = currentFiltVal < prevFiltVal; const trendChangedToRising = currentFiltVal > prevFiltVal; const actualPrevTime = sampleTime - SAMPLING_INTERVAL_MS; if (breathCycleState === 'EXPECTING_PEAK' && trendChangedToFalling) { lastDetectedBreathPeak = { value: prevFiltVal, time: actualPrevTime }; breathCycleState = 'EXPECTING_TROUGH'; } else if (breathCycleState === 'EXPECTING_TROUGH' && trendChangedToRising) { lastDetectedBreathTrough = { value: prevFiltVal, time: actualPrevTime }; if (lastDetectedBreathPeak.value !== null) { const amplitude = Math.abs(lastDetectedBreathPeak.value - lastDetectedBreathTrough.value); if (amplitude >= MIN_BREATH_AMPLITUDE_THRESHOLD) { logMessage(`BREATH EVENT: Amp ${amplitude.toFixed(3)}`, 'success'); lastConfirmedBreathEventTimestamps.push(lastDetectedBreathTrough.time); if (lastConfirmedBreathEventTimestamps.length > MAX_BREATH_EVENTS_FOR_RATE) lastConfirmedBreathEventTimestamps.shift(); calculateAndDisplayBreathingRate(); } } breathCycleState = 'EXPECTING_PEAK'; lastDetectedBreathPeak = { value: null, time: null }; lastDetectedBreathTrough = { value: null, time: null }; } if (lookingForHeartbeatPeak && trendChangedToFalling) { if (prevFiltVal > (potentialHeartbeatPeak.value || -Infinity)) { potentialHeartbeatPeak = {value: prevFiltVal, time: actualPrevTime}; } } else if (trendChangedToRising && potentialHeartbeatPeak.value !== null) { const hb_amplitude = Math.abs(potentialHeartbeatPeak.value - prevFiltVal); if (hb_amplitude >= MIN_HEARTBEAT_AMPLITUDE_THRESHOLD) { if (potentialHeartbeatPeak.time - lastHeartbeatPeakTime > MIN_HEARTBEAT_INTERVAL_MS) { logMessage(`PULSE EVENT: Amp ${hb_amplitude.toFixed(4)}`, 'pulse'); lastConfirmedHeartbeatTimestamps.push(potentialHeartbeatPeak.time); if (lastConfirmedHeartbeatTimestamps.length > MAX_HEARTBEAT_EVENTS_FOR_RATE) lastConfirmedHeartbeatTimestamps.shift(); calculateAndDisplayHeartRate(); lastHeartbeatPeakTime = potentialHeartbeatPeak.time; } } potentialHeartbeatPeak = {value: null, time: null}; } if (trendChangedToRising) lookingForHeartbeatPeak = true; if (trendChangedToFalling) lookingForHeartbeatPeak = false; }
 
         function processSensorData(key, zeroAdjustedValue, currentSampleTime) {
-            if (calibrationState === 'complete') { // Only process visual phase after calibration
-                if (lastRawAccelXForPhase !== null || sensorData[key].raw.length > 0) { // Ensure there's a previous value
-                     detectVisualBreathPhase(zeroAdjustedValue, lastRawAccelXForPhase);
+            if (calibrationState === 'complete') { 
+                if (lastRawAccelXForPhase !== null || sensorData[key].raw.length > 0 || Object.keys(sensorZeroOffsets).length > 0 ) { 
+                     // Ensure lastRawAccelXForPhase is not using its initial 0 if sensorZeroOffsets are available
+                    let prevValueForPhase = (sensorData[key].raw.length === 0 && Object.keys(sensorZeroOffsets).length > 0) ? (sensorZeroOffsets[TARGET_SENSOR_KEY] || 0) : lastRawAccelXForPhase;
+                    detectVisualBreathPhase(zeroAdjustedValue, prevValueForPhase);
                 }
             }
             lastRawAccelXForPhase = zeroAdjustedValue;
@@ -299,11 +299,10 @@
                     if(accelChart) { accelChart.data.labels = []; accelChart.data.datasets[0].data = []; accelChart.update('none');} 
                     calculateAndDisplayBreathingRate(); calculateAndDisplayHeartRate(); 
                     
-                    // Initialize visual phase variables after calibration
                     lastRawAccelXForPhase = sensorZeroOffsets[TARGET_SENSOR_KEY] || 0;
                     recentHistoricalMaxRawAccelX = -Infinity;
                     lastVisualTroughValue = sensorZeroOffsets[TARGET_SENSOR_KEY] || 0;
-                    lastVisualCycleAmplitude = MIN_BREATH_AMPLITUDE_THRESHOLD * 0.5; // Start with a smaller default
+                    lastVisualCycleAmplitude = MIN_BREATH_AMPLITUDE_THRESHOLD * 0.5; 
                     currentVisualBreathPhase = 'NONE';
                     updateBreathPhaseDisplay('NONE');
 
@@ -340,11 +339,10 @@
             heartAmpThresholdSlider.addEventListener('change', () => { logMessage(`Pulse Amp Thresh: ${MIN_HEARTBEAT_AMPLITUDE_THRESHOLD.toFixed(3)}`); lastConfirmedHeartbeatTimestamps = []; calculateAndDisplayHeartRate(); });
             
             calculateAndDisplayBreathingRate(); calculateAndDisplayHeartRate();
-            // Initialize visual phase variables on load
             lastRawAccelXForPhase = 0;
             recentHistoricalMaxRawAccelX = -Infinity;
             lastVisualTroughValue = 0; 
-            lastVisualCycleAmplitude = MIN_BREATH_AMPLITUDE_THRESHOLD * 0.5; // Sensible default
+            lastVisualCycleAmplitude = MIN_BREATH_AMPLITUDE_THRESHOLD * 0.5; 
             currentVisualBreathPhase = 'NONE';
             updateBreathPhaseDisplay('NONE'); 
         });
