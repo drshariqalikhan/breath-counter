@@ -153,7 +153,7 @@
         const SAMPLING_INTERVAL_MS = 100; // 10 Hz
 
         // --- Breathing Rate Detection Settings ---
-        let MIN_BREATH_AMPLITUDE_THRESHOLD = 0.20;
+        let MIN_BREATH_AMPLITUDE_THRESHOLD = 0.10;
         const MAX_BREATH_EVENTS_FOR_RATE = 6; // ~5 breaths
         let lastConfirmedBreathEventTimestamps = [];
         let breathCycleState = 'EXPECTING_PEAK';
@@ -161,7 +161,7 @@
         let lastDetectedBreathTrough = { value: null, time: null };
 
         // --- Heart Rate (Pulse) Detection Settings ---
-        let MIN_HEARTBEAT_AMPLITUDE_THRESHOLD = 0.020; // Much smaller
+        let MIN_HEARTBEAT_AMPLITUDE_THRESHOLD = 0.010; // Much smaller
         const MAX_HEARTBEAT_EVENTS_FOR_RATE = 10; // ~9 beats
         const MIN_HEARTBEAT_INTERVAL_MS = 300; // Approx max 200 BPM
         let lastConfirmedHeartbeatTimestamps = [];
