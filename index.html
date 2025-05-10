@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Motion Sensor Visualizer (SG Filter)</title>
+    <title>Motion Sensor Visualizer (SG Filter + Zeroing)</title>
 
     <!-- Apple Web App Meta Tags -->
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -25,12 +25,13 @@
             flex-direction: column;
             gap: 15px;
         }
-        .permission-section {
+        .permission-section, .calibration-notice {
             text-align: center;
             padding: 20px;
             background-color: #fff;
             border-radius: 8px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 15px;
         }
         .controls {
             display: flex;
@@ -97,6 +98,9 @@
             color: red;
             font-weight: bold;
         }
+        .log-entry.warn {
+            color: orange;
+        }
         .hidden {
             display: none !important;
         }
@@ -104,11 +108,15 @@
 </head>
 <body>
     <div class="container">
-        <h1>Motion Sensor Visualizer (SG Filter)</h1>
+        <h1>Motion Sensor Visualizer (SG Filter + Zeroing)</h1>
 
         <div id="permissionSection" class="permission-section">
             <p>This app requires access to your device's motion sensors.</p>
             <button id="requestPermissionButton">Grant Motion Sensor Access</button>
+        </div>
+
+        <div id="calibrationNotice" class="calibration-notice hidden">
+            <p id="calibrationText">Initializing calibration...</p>
         </div>
 
         <div id="mainContent" class="hidden">
@@ -139,17 +147,18 @@
 
     <script>
         const MAX_CHART_POINTS = 50;
-        // Savitzky-Golay Filter parameters (Window Size 5, Polynomial Order 2, for smoothing)
-        const SG_WINDOW_SIZE = 5; // Must be ODD
+        const SG_WINDOW_SIZE = 5;
         const SG_COEFFICIENTS = [-3, 12, 17, 12, -3];
         const SG_DENOMINATOR = 35;
-        // Ensure MAX_RAW_DATA_STORAGE is at least MAX_CHART_POINTS
-        const MAX_RAW_DATA_STORAGE = MAX_CHART_POINTS;
+        const MAX_RAW_DATA_STORAGE = MAX_CHART_POINTS; // Stores (zero-adjusted) values for filtering
 
+        const CALIBRATION_DELAY_MS = 10000; // 10 seconds
+        const CALIBRATION_DURATION_MS = 30000; // 30 seconds
 
         const logArea = document.getElementById('logArea');
         const permissionSection = document.getElementById('permissionSection');
-        const requestPermissionButton = document.getElementById('requestPermissionButton');
+        const calibrationNotice = document.getElementById('calibrationNotice');
+        const calibrationText = document.getElementById('calibrationText');
         const mainContent = document.getElementById('mainContent');
         const sensorSelect = document.getElementById('sensorSelect');
         const filterButton = document.getElementById('filterButton');
@@ -158,7 +167,7 @@
         let sensorChart;
         let currentSensorKey = 'accelX';
 
-        let sensorData = {
+        let sensorData = { // Stores data for chart display (post-calibration, post-filtering)
             accelX: { raw: [], filteredForChart: [], lpfActive: false },
             accelY: { raw: [], filteredForChart: [], lpfActive: false },
             accelZ: { raw: [], filteredForChart: [], lpfActive: false },
@@ -168,12 +177,18 @@
         };
         let chartLabels = [];
 
+        // Calibration related variables
+        let calibrationState = 'pending'; // 'pending', 'delay', 'collecting', 'complete'
+        let calibrationStartTimestamp;
+        let tempCalibrationData = { accelX: [], accelY: [], accelZ: [], gyroAlpha: [], gyroBeta: [], gyroGamma: [] };
+        let sensorZeroOffsets = { accelX: 0, accelY: 0, accelZ: 0, gyroAlpha: 0, gyroBeta: 0, gyroGamma: 0 };
+
+
         function logMessage(message, type = 'info') {
             const entry = document.createElement('div');
             entry.classList.add('log-entry');
-            if (type === 'error') {
-                entry.classList.add('error');
-            }
+            if (type === 'error') entry.classList.add('error');
+            if (type === 'warn') entry.classList.add('warn');
             entry.textContent = `[${new Date().toLocaleTimeString()}] ${type.toUpperCase()}: ${message}`;
             logArea.appendChild(entry);
             logArea.scrollTop = logArea.scrollHeight;
@@ -186,7 +201,7 @@
                 data: {
                     labels: [],
                     datasets: [{
-                        label: 'Sensor Value',
+                        label: 'Sensor Value (relative to zero)',
                         data: [],
                         borderColor: 'rgb(75, 192, 192)',
                         tension: 0.1,
@@ -194,12 +209,8 @@
                     }]
                 },
                 options: {
-                    responsive: true,
-                    maintainAspectRatio: true,
-                    scales: {
-                        x: { display: true, title: { display: false } },
-                        y: { display: true, title: { display: false } }
-                    },
+                    responsive: true, maintainAspectRatio: true,
+                    scales: { x: { display: true }, y: { display: true } },
                     animation: { duration: 0 },
                     plugins: { legend: { display: false } }
                 }
@@ -207,6 +218,7 @@
         }
 
         function savitzkyGolaySmooth(data) {
+            // ... (Savitzky-Golay implementation - same as before)
             const windowSize = SG_WINDOW_SIZE;
             const coeffs = SG_COEFFICIENTS;
             const denominator = SG_DENOMINATOR;
@@ -217,7 +229,6 @@
 
             for (let i = 0; i < data.length; i++) {
                 if (i < halfWindow || i >= data.length - halfWindow || data.length < windowSize) {
-                    // Handle edges or insufficient data: copy raw value
                     smoothedData.push(data[i]);
                 } else {
                     let sum = 0;
@@ -230,63 +241,136 @@
             return smoothedData;
         }
 
-        function processSensorData(key, rawValue) {
+        // Processes ZERO-ADJUSTED data for filtering and chart preparation
+        function processSensorDataForChart(key, zeroAdjustedValue) {
             const dataObj = sensorData[key];
 
-            dataObj.raw.push(rawValue);
+            // dataObj.raw now stores the history of zero-adjusted values for potential re-filtering
+            dataObj.raw.push(zeroAdjustedValue);
             if (dataObj.raw.length > MAX_RAW_DATA_STORAGE) {
                 dataObj.raw.shift();
             }
 
-            // Get the most recent data points for chart processing
-            // (this will be MAX_CHART_POINTS or fewer if raw data is less)
-            const currentRawSegment = dataObj.raw.slice(-MAX_CHART_POINTS);
+            const currentInputSegmentForChart = dataObj.raw.slice(-MAX_CHART_POINTS);
 
             if (dataObj.lpfActive) {
-                dataObj.filteredForChart = savitzkyGolaySmooth(currentRawSegment);
+                dataObj.filteredForChart = savitzkyGolaySmooth(currentInputSegmentForChart);
             } else {
-                dataObj.filteredForChart = [...currentRawSegment]; // Create a copy
+                dataObj.filteredForChart = [...currentInputSegmentForChart];
             }
         }
 
 
         function updateChart() {
-            if (!sensorChart || !sensorData[currentSensorKey]) return;
+            if (!sensorChart || !sensorData[currentSensorKey] || calibrationState !== 'complete') {
+                // Don't update chart with data if not calibrated or chart not ready
+                return;
+            }
 
-            // Ensure chartLabels also adheres to MAX_CHART_POINTS
-            // This will be managed by handleDeviceMotion when pushing new labels
-            // Here, we just ensure the data arrays align with the current labels on chart.
             const currentFilteredData = sensorData[currentSensorKey].filteredForChart;
+            // Align labels with the actual data points being shown
+            const currentLabels = chartLabels.slice(-currentFilteredData.length);
 
-            sensorChart.data.labels = chartLabels.slice(-currentFilteredData.length); // Align labels with data length
+
+            sensorChart.data.labels = currentLabels;
             sensorChart.data.datasets[0].data = currentFilteredData;
-            sensorChart.data.datasets[0].label = chartTitle.textContent;
+            sensorChart.data.datasets[0].label = `${chartTitle.textContent} (relative to zero)`;
             sensorChart.update();
         }
 
         function handleDeviceMotion(event) {
+            const currentTime = Date.now();
+
+            if (calibrationState === 'pending') { // First event after permission
+                calibrationStartTimestamp = currentTime;
+                calibrationState = 'delay';
+                calibrationNotice.classList.remove('hidden');
+                const delayEndTime = new Date(calibrationStartTimestamp + CALIBRATION_DELAY_MS).toLocaleTimeString();
+                calibrationText.textContent = `Calibration: Delay phase for ${CALIBRATION_DELAY_MS / 1000}s. Please keep device relatively still. Ends around ${delayEndTime}.`;
+                logMessage(`Calibration sequence started. Delay phase (${CALIBRATION_DELAY_MS / 1000}s).`);
+                return;
+            }
+
             const acc = event.accelerationIncludingGravity;
             const rot = event.rotationRate;
-            const now = new Date().toLocaleTimeString().split(" ")[0];
+            const incomingRawValues = {
+                accelX: acc ? acc.x || 0 : 0,
+                accelY: acc ? acc.y || 0 : 0,
+                accelZ: acc ? acc.z || 0 : 0,
+                gyroAlpha: rot ? rot.alpha || 0 : 0,
+                gyroBeta: rot ? rot.beta || 0 : 0,
+                gyroGamma: rot ? rot.gamma || 0 : 0,
+            };
 
-            // Manage chartLabels size
-            if (chartLabels.length >= MAX_CHART_POINTS) {
-                chartLabels.shift();
+            if (calibrationState === 'delay') {
+                if (currentTime >= calibrationStartTimestamp + CALIBRATION_DELAY_MS) {
+                    calibrationState = 'collecting';
+                    calibrationStartTimestamp = currentTime; // Reset start time for the collection phase
+                    const collectionEndTime = new Date(calibrationStartTimestamp + CALIBRATION_DURATION_MS).toLocaleTimeString();
+                    calibrationText.textContent = `Calibration: Collecting sensor data for ${CALIBRATION_DURATION_MS / 1000}s. Keep device still. Ends around ${collectionEndTime}.`;
+                    logMessage(`Calibration delay complete. Collecting data for zeroing (${CALIBRATION_DURATION_MS / 1000}s).`);
+                } else {
+                    // Still in delay, update countdown or message if desired
+                    const timeLeft = Math.round((calibrationStartTimestamp + CALIBRATION_DELAY_MS - currentTime)/1000);
+                    calibrationText.textContent = `Calibration: Delay phase... ${timeLeft}s remaining. Keep still.`;
+                    return;
+                }
             }
-            chartLabels.push(now);
+
+            if (calibrationState === 'collecting') {
+                Object.keys(incomingRawValues).forEach(key => {
+                    tempCalibrationData[key].push(incomingRawValues[key]);
+                });
+
+                if (currentTime >= calibrationStartTimestamp + CALIBRATION_DURATION_MS) {
+                    calibrationState = 'complete';
+                    calibrationText.textContent = 'Calibration complete! Plotting relative values.';
+                    logMessage('Calibration data collection complete. Calculating zero offsets...');
+                    Object.keys(tempCalibrationData).forEach(key => {
+                        if (tempCalibrationData[key].length > 0) {
+                            const sum = tempCalibrationData[key].reduce((s, v) => s + v, 0);
+                            sensorZeroOffsets[key] = sum / tempCalibrationData[key].length;
+                            logMessage(`Zero offset for ${key}: ${sensorZeroOffsets[key].toFixed(4)}`);
+                        } else {
+                            sensorZeroOffsets[key] = 0;
+                            logMessage(`No calibration data for ${key}, offset set to 0.`, 'warn');
+                        }
+                        tempCalibrationData[key] = []; // Clear collected data
+                    });
+                    logMessage('Calibration complete. Plotting zero-adjusted values.');
+                    // Clear any old chart data and labels before plotting calibrated values
+                    Object.keys(sensorData).forEach(key => {
+                        sensorData[key].raw = [];
+                        sensorData[key].filteredForChart = [];
+                    });
+                    chartLabels = [];
+                    setTimeout(() => calibrationNotice.classList.add('hidden'), 3000); // Hide notice after a bit
+                    mainContent.classList.remove('hidden'); // Show chart controls
+                } else {
+                    // Still collecting, update countdown or message if desired
+                    const timeLeft = Math.round((calibrationStartTimestamp + CALIBRATION_DURATION_MS - currentTime)/1000);
+                    calibrationText.textContent = `Calibration: Collecting data... ${timeLeft}s remaining. Keep still.`;
+                    return;
+                }
+            }
+
+            if (calibrationState === 'complete') {
+                const nowLabel = new Date().toLocaleTimeString().split(" ")[0];
+                // Add label only if we are adding data points
+                if (chartLabels.length < MAX_CHART_POINTS) {
+                    chartLabels.push(nowLabel);
+                } else if (chartLabels[chartLabels.length -1] !== nowLabel){ // Avoid duplicate labels for same second if MAX_POINTS is high
+                    chartLabels.shift();
+                    chartLabels.push(nowLabel);
+                }
 
 
-            if (acc) {
-                processSensorData('accelX', acc.x || 0);
-                processSensorData('accelY', acc.y || 0);
-                processSensorData('accelZ', acc.z || 0);
+                Object.keys(incomingRawValues).forEach(key => {
+                    const zeroAdjustedValue = incomingRawValues[key] - sensorZeroOffsets[key];
+                    processSensorDataForChart(key, zeroAdjustedValue);
+                });
+                updateChart();
             }
-            if (rot) {
-                processSensorData('gyroAlpha', rot.alpha || 0);
-                processSensorData('gyroBeta', rot.beta || 0);
-                processSensorData('gyroGamma', rot.gamma || 0);
-            }
-            updateChart();
         }
 
         function updateFilterButtonState() {
@@ -296,22 +380,29 @@
         }
 
         sensorSelect.addEventListener('change', (e) => {
+            if (calibrationState !== 'complete' && calibrationState !== 'pending') { // Allow change if permission not yet granted
+                logMessage('Please wait for calibration to complete before changing sensor.', 'warn');
+                e.target.value = currentSensorKey; // Revert selection
+                return;
+            }
             currentSensorKey = e.target.value;
             chartTitle.textContent = e.target.options[e.target.selectedIndex].text;
             logMessage(`Switched to sensor: ${chartTitle.textContent}`);
             updateFilterButtonState();
-            // Refresh chart with data for the newly selected sensor
-            updateChart();
+            updateChart(); // Refresh chart with data for the newly selected sensor
         });
 
         filterButton.addEventListener('click', () => {
+            if (calibrationState !== 'complete') {
+                logMessage('Please wait for calibration to complete before toggling filter.', 'warn');
+                return;
+            }
             const dataObj = sensorData[currentSensorKey];
             dataObj.lpfActive = !dataObj.lpfActive;
             updateFilterButtonState();
             logMessage(`${chartTitle.textContent} SG filter ${dataObj.lpfActive ? 'activated' : 'deactivated'}.`);
 
-            // Re-process current data for immediate visual feedback
-            // Get the current raw segment again, as processSensorData would.
+            // Re-process current data (which is already zero-adjusted in dataObj.raw)
             const currentRawSegment = dataObj.raw.slice(-MAX_CHART_POINTS);
             if (dataObj.lpfActive) {
                 dataObj.filteredForChart = savitzkyGolaySmooth(currentRawSegment);
@@ -321,7 +412,6 @@
             updateChart();
         });
 
-
         function requestMotionPermission() {
             logMessage('Attempting to request motion sensor permission...');
             if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
@@ -329,9 +419,10 @@
                     .then(permissionState => {
                         if (permissionState === 'granted') {
                             logMessage('Motion sensor permission granted.');
-                            window.addEventListener('devicemotion', handleDeviceMotion, true);
                             permissionSection.classList.add('hidden');
-                            mainContent.classList.remove('hidden');
+                            // DO NOT show mainContent yet, calibration notice will appear first.
+                            window.addEventListener('devicemotion', handleDeviceMotion, true);
+                            // Calibration starts on the first devicemotion event.
                         } else {
                             logMessage('Motion sensor permission denied by user.', 'error');
                             alert('Permission denied. Motion sensor data will not be available.');
@@ -339,14 +430,12 @@
                     })
                     .catch(error => {
                         logMessage(`Error requesting motion permission: ${error.name} - ${error.message}`, 'error');
-                        console.error(error);
                         alert('An error occurred while requesting permission: ' + error.message);
                     });
             } else if (typeof DeviceMotionEvent !== 'undefined') {
                 logMessage('DeviceMotionEvent available (no specific permission needed or already granted).');
-                window.addEventListener('devicemotion', handleDeviceMotion, true);
                 permissionSection.classList.add('hidden');
-                mainContent.classList.remove('hidden');
+                window.addEventListener('devicemotion', handleDeviceMotion, true);
             } else {
                 logMessage('DeviceMotionEvent API not supported on this browser.', 'error');
                 alert('Device Motion API not supported. This app will not work.');
@@ -354,11 +443,12 @@
         }
 
         window.addEventListener('load', () => {
-            logMessage('App loaded.');
+            logMessage('App loaded. Grant permission to start calibration.');
             sensorChart = createChart('sensorChart');
             currentSensorKey = sensorSelect.value;
             chartTitle.textContent = sensorSelect.options[sensorSelect.selectedIndex].text;
-            updateFilterButtonState();
+            // Main content (chart & controls) is hidden until calibration is complete.
+            // Filter button state will be set once main content is visible and sensor selected.
 
             requestPermissionButton.addEventListener('click', requestMotionPermission);
 
