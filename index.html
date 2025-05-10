@@ -11,9 +11,9 @@
         :root {
             --bg-color: #121212;
             --surface-color: #1e1e1e;
-            --primary-color: #2196F3; /* Material Blue */
+            --primary-color: #2196F3;
             --primary-variant-color: #1976D2;
-            --secondary-color: #FF9800; /* Orange for contrast */
+            --secondary-color: #FF9800;
             --text-color-primary: rgba(255, 255, 255, 0.9);
             --text-color-secondary: rgba(255, 255, 255, 0.65);
             --slider-thumb-color: var(--secondary-color);
@@ -25,60 +25,40 @@
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
         html, body {
-            width: 100%;
-            height: 100%;
-            margin: 0;
-            padding: 0;
-            overflow: hidden; /* CRITICAL: Prevent body scroll */
-            background-color: var(--bg-color);
-            color: var(--text-color-primary);
+            width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden;
+            background-color: var(--bg-color); color: var(--text-color-primary);
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
         }
 
         .app-container {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            width: 100%;
-            height: 100%; /* Take full viewport height */
-            padding: 10px 15px;
-            /* overflow-y: auto; /* Add scroll ONLY if content truly cannot fit */
+            display: flex; flex-direction: column; align-items: center;
+            width: 100%; height: 100%; padding: 8px 15px; /* Reduced top/bottom padding */
         }
 
         .app-title {
-            font-size: clamp(1.1em, 3.5vh, 1.8em); /* Slightly smaller */
-            font-weight: 300;
-            color: var(--text-color-primary);
-            margin-bottom: clamp(5px, 1.5vh, 10px); /* Responsive margin */
-            letter-spacing: 1.5px;
-            flex-shrink: 0; /* Important */
+            font-size: clamp(1.1em, 3vh, 1.7em); /* Adjusted */
+            font-weight: 300; color: var(--text-color-primary);
+            margin-bottom: clamp(5px, 1vh, 8px); /* Adjusted */
+            letter-spacing: 1.5px; flex-shrink: 0;
         }
 
         .sliders-area {
-            display: flex;
-            justify-content: space-around;
-            align-items: center;
-            width: 100%;
-            max-width: 500px;
-            margin-bottom: clamp(8px, 2vh, 15px); /* Responsive margin */
-            flex-shrink: 0; /* Important */
+            display: flex; justify-content: space-around; align-items: center;
+            width: 100%; max-width: 480px; /* Slightly reduced max-width */
+            margin-bottom: clamp(8px, 1.5vh, 12px); /* Adjusted */
+            flex-shrink: 0;
         }
 
         .settings-group {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 0 10px;
+            display: flex; flex-direction: column; align-items: center; padding: 0 8px;
         }
         .settings-group label {
-            font-size: 0.7em; /* Smaller label */
-            color: var(--text-color-secondary);
-            margin-bottom: 3px;
-            white-space: nowrap;
+            font-size: 0.65em; /* Adjusted */
+            color: var(--text-color-secondary); margin-bottom: 3px; white-space: nowrap;
         }
         .settings-group label span { font-weight: bold; color: var(--text-color-primary); }
         .settings-group input[type="range"] {
-            width: clamp(90px, 25vw, 150px); /* Slightly smaller sliders */
+            width: clamp(80px, 22vw, 140px); /* Adjusted */
             height: 18px; margin:0; cursor: pointer; background: transparent;
             -webkit-appearance: none; appearance: none;
         }
@@ -90,39 +70,26 @@
 
         .chart-area-wrapper {
             width: 100%;
-            /* flex-grow: 1; /* Let's remove this and use max-height */
-            /* min-height: 120px; /* Ensure it has some height */
-            height: clamp(120px, 45vh, 250px); /* KEY CHANGE: Explicit responsive height */
-            max-height: 50vh; /* Absolute max height relative to viewport */
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            margin-bottom: clamp(5px, 1.5vh, 10px); /* Responsive margin */
-            flex-shrink: 0; /* Allow shrinking but prefer defined height */
+            height: clamp(100px, 35vh, 200px); /* KEY CHANGE: Reduced chart height */
+            /* max-height: 40vh; /* Reduced max height */
+            display: flex; justify-content: center; align-items: center;
+            margin-bottom: clamp(8px, 1.5vh, 12px); /* Adjusted */
+            flex-shrink: 0;
         }
         #accelChartCanvas {
-            background-color: var(--surface-color);
-            border-radius: 8px;
-            width: 100%; /* Canvas takes full width of its wrapper */
-            height: 100%; /* Canvas takes full height of its wrapper */
+            background-color: var(--surface-color); border-radius: 8px;
+            width: 100%; height: 100%;
         }
 
 
         .rates-display-area {
-            display: flex;
-            justify-content: space-around;
-            align-items: center;
-            width: 100%;
-            max-width: 400px;
-            padding: 5px 0;
-            flex-shrink: 0; /* Important */
-            font-weight: bold;
+            display: flex; justify-content: space-around; align-items: center;
+            width: 100%; max-width: 450px; /* Slightly increased max-width */
+            padding: 5px 0; flex-shrink: 0; font-weight: bold;
         }
         #breathRateDisplay, #heartRateDisplay {
-            font-size: clamp(0.9em, 2.8vh, 1.3em); /* Slightly smaller */
-            padding: 5px 8px;
-            border-radius: 6px;
-            background-color: var(--surface-color);
+            font-size: clamp(1.2em, 3.8vh, 1.8em); /* KEY CHANGE: Increased font size */
+            padding: 5px 10px; border-radius: 6px; background-color: var(--surface-color);
         }
         #breathRateDisplay { color: var(--primary-color); }
         #heartRateDisplay { color: var(--secondary-color); }
@@ -134,7 +101,7 @@
         }
         #permissionButton {
             background-color: var(--primary-color); color: var(--bg-color); border: none;
-            padding: 12px 25px; border-radius: 30px; /* Slightly smaller */
+            padding: 12px 25px; border-radius: 30px;
             font-size: clamp(1em, 3.5vh, 1.6em); cursor: pointer; font-weight: bold;
         }
 
@@ -148,12 +115,12 @@
 
         <div class="sliders-area">
             <div class="settings-group">
-                <label for="breathAmpThresholdSlider">Breath Amp (<span id="breathAmpThresholdValue">0.20</span>)</label>
-                <input type="range" id="breathAmpThresholdSlider" min="0.01" max="1.0" step="0.01" value="0.2">
+                <label for="breathAmpThresholdSlider">Breath Amp (<span id="breathAmpThresholdValue">0.10</span>)</label> <!-- Updated default display -->
+                <input type="range" id="breathAmpThresholdSlider" min="0.01" max="1.0" step="0.01" value="0.10"> <!-- Updated default value -->
             </div>
             <div class="settings-group">
-                <label for="heartAmpThresholdSlider">Pulse Amp (<span id="heartAmpThresholdValue">0.020</span>)</label>
-                 <input type="range" id="heartAmpThresholdSlider" min="0.005" max="0.2" step="0.001" value="0.02">
+                <label for="heartAmpThresholdSlider">Pulse Amp (<span id="heartAmpThresholdValue">0.010</span>)</label> <!-- Updated default display -->
+                 <input type="range" id="heartAmpThresholdSlider" min="0.002" max="0.1" step="0.001" value="0.010"> <!-- Updated default value & range -->
             </div>
         </div>
 
@@ -177,17 +144,22 @@
 
     <script>
         // --- Constants & Global Vars ---
-        const CHART_MAX_POINTS = 120;
+        const CHART_MAX_POINTS = 100; // Reduced for less dense chart if needed
         const SAMPLING_INTERVAL_MS = 100;
         const SG_WINDOW_SIZE = 5; const SG_COEFFICIENTS = [-3, 12, 17, 12, -3]; const SG_DENOMINATOR = 35;
         const MAX_RAW_DATA_STORAGE = CHART_MAX_POINTS * 2;
         const CALIBRATION_DELAY_MS = 2000; const CALIBRATION_DURATION_MS = 5000;
         const TARGET_SENSOR_KEY = 'accelX';
-        let MIN_BREATH_AMPLITUDE_THRESHOLD = 0.20; const MAX_BREATH_EVENTS_FOR_RATE = 5;
+        
+        let MIN_BREATH_AMPLITUDE_THRESHOLD = 0.10; // NEW DEFAULT
+        const MAX_BREATH_EVENTS_FOR_RATE = 5;
         let lastConfirmedBreathEventTimestamps = []; let breathCycleState = 'EXPECTING_PEAK';
         let lastDetectedBreathPeak = { value: null, time: null }; let lastDetectedBreathTrough = { value: null, time: null };
-        let MIN_HEARTBEAT_AMPLITUDE_THRESHOLD = 0.020; const MAX_HEARTBEAT_EVENTS_FOR_RATE = 8;
-        const MIN_HEARTBEAT_INTERVAL_MS = 300; let lastConfirmedHeartbeatTimestamps = [];
+        
+        let MIN_HEARTBEAT_AMPLITUDE_THRESHOLD = 0.010; // NEW DEFAULT
+        const MAX_HEARTBEAT_EVENTS_FOR_RATE = 8;
+        const MIN_HEARTBEAT_INTERVAL_MS = 300; // Approx max 200 BPM
+        let lastConfirmedHeartbeatTimestamps = [];
         let lastHeartbeatPeakTime = 0; let potentialHeartbeatPeak = {value: null, time: null};
         let lookingForHeartbeatPeak = true; let previousFilteredValueAccelX = null;
 
@@ -223,7 +195,7 @@
                     responsive: true, maintainAspectRatio: false, animation: { duration: 0 },
                     scales: {
                         x: { display: false },
-                        y: { display: true, ticks: { color: getComputedStyle(document.documentElement).getPropertyValue('--text-color-secondary').trim(), font: {size: 9}, padding: 3 }, grid: { color: getComputedStyle(document.documentElement).getPropertyValue('--chart-grid-color').trim() }, suggestedMin: -1.0, suggestedMax: 1.0 }
+                        y: { display: true, ticks: { color: getComputedStyle(document.documentElement).getPropertyValue('--text-color-secondary').trim(), font: {size: 8}, padding: 3 }, grid: { color: getComputedStyle(document.documentElement).getPropertyValue('--chart-grid-color').trim() }, suggestedMin: -0.5, suggestedMax: 0.5 } // Adjusted Y-axis range for smaller expected amplitudes
                     },
                     plugins: {
                         legend: { display: false },
@@ -263,13 +235,22 @@
         });
         window.addEventListener('load', () => {
             logMessage('App loaded. Tap Start Session.');
-            // Slider setup
-            breathAmpThresholdSlider.value = MIN_BREATH_AMPLITUDE_THRESHOLD; breathAmpThresholdValueDisplay.textContent = MIN_BREATH_AMPLITUDE_THRESHOLD.toFixed(2);
+            // Slider setup with new defaults
+            breathAmpThresholdSlider.value = MIN_BREATH_AMPLITUDE_THRESHOLD;
+            breathAmpThresholdValueDisplay.textContent = MIN_BREATH_AMPLITUDE_THRESHOLD.toFixed(2);
             breathAmpThresholdSlider.addEventListener('input', (event) => { MIN_BREATH_AMPLITUDE_THRESHOLD = parseFloat(event.target.value); breathAmpThresholdValueDisplay.textContent = MIN_BREATH_AMPLITUDE_THRESHOLD.toFixed(2); });
             breathAmpThresholdSlider.addEventListener('change', () => { logMessage(`Breath Amp Thresh: ${MIN_BREATH_AMPLITUDE_THRESHOLD.toFixed(3)}`); lastConfirmedBreathEventTimestamps = []; calculateAndDisplayBreathingRate(); });
-            heartAmpThresholdSlider.value = MIN_HEARTBEAT_AMPLITUDE_THRESHOLD; heartAmpThresholdValueDisplay.textContent = MIN_HEARTBEAT_AMPLITUDE_THRESHOLD.toFixed(3);
+
+            heartAmpThresholdSlider.value = MIN_HEARTBEAT_AMPLITUDE_THRESHOLD;
+            heartAmpThresholdValueDisplay.textContent = MIN_HEARTBEAT_AMPLITUDE_THRESHOLD.toFixed(3);
+            // Adjust pulse slider range if necessary for the new default
+            heartAmpThresholdSlider.min = "0.001"; // Ensure new default is within range
+            heartAmpThresholdSlider.max = "0.05";  // Example adjusted max
+            heartAmpThresholdSlider.step= "0.001";
+
             heartAmpThresholdSlider.addEventListener('input', (event) => { MIN_HEARTBEAT_AMPLITUDE_THRESHOLD = parseFloat(event.target.value); heartAmpThresholdValueDisplay.textContent = MIN_HEARTBEAT_AMPLITUDE_THRESHOLD.toFixed(3); });
             heartAmpThresholdSlider.addEventListener('change', () => { logMessage(`Pulse Amp Thresh: ${MIN_HEARTBEAT_AMPLITUDE_THRESHOLD.toFixed(3)}`); lastConfirmedHeartbeatTimestamps = []; calculateAndDisplayHeartRate(); });
+            
             calculateAndDisplayBreathingRate(); calculateAndDisplayHeartRate();
         });
         window.addEventListener('resize', () => { if (accelChart) accelChart.resize(); });
