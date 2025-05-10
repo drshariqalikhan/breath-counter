@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Breath Rate Counter</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 15px;
+            background-color: #f4f4f4;
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .container {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            width: 95%;
+            max-width: 800px;
+            margin-bottom: 20px;
+        }
+        h1, h2 {
+            color: #333;
+            text-align: center;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 10px 5px;
+            cursor: pointer;
+            border-radius: 5px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .instructions, .results, .logs {
+            margin-bottom: 20px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: #f9f9f9;
+        }
+        .logs pre {
+            max-height: 150px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-size: 0.9em;
+        }
+        .chart-container {
+            margin-bottom: 20px;
+            width: 100%;
+            max-width: 700px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        #bpmValue {
+            font-size: 2em;
+            font-weight: bold;
+            color: #28a745;
+        }
+        .important-note {
+            color: red;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Breath Rate Counter</h1>
+
+        <div class="important-note">
+            NOTE: This web app MUST be served over HTTPS for sensor access on iOS and some Android browsers.
+            If running locally, you might need to set up a local HTTPS server.
+        </div>
+
+        <div class="instructions">
+            <h2>Instructions:</h2>
+            <ol>
+                <li>Click "Request Sensor Permissions". Allow access when prompted.</li>
+                <li>Sit still and hold your smartphone flat against your upper-middle chest with the screen facing outwards.</li>
+                <li>Breathe normally.</li>
+                <li>Click "Start Recording". The recording will last for 30 seconds.</li>
+                <li>Your estimated breath rate (BPM) will be displayed after processing.</li>
+            </ol>
+            <p>This app uses the phone's gyroscope (rotation rate around X, Y, Z axes) and accelerometer (X, Y, Z axes including gravity) to estimate your breathing rate. We primarily use gyroscope's beta (pitch rate) axis for calculation.</p>
+        </div>
+
+        <button id="permissionButton">Request Sensor Permissions</button>
+        <button id="startButton" disabled>Start Recording (30s)</button>
+        <div id="status">Status: Idle</div>
+
+        <div class="results">
+            <h2>Results:</h2>
+            <p>Estimated Breath Rate: <span id="bpmValue">--</span> BPM</p>
+            <p>Analysis Signal: Gyroscope Beta (Pitch Rate)</p>
+            <p id="effectiveSampleRate">Effective Sample Rate: -- Hz</p>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>Sensor Data Charts</h2>
+        <div class="chart-container">
+            <h3>Gyroscope (rad/s)</h3>
+            <canvas id="gyroChart"></canvas>
+        </div>
+        <div class="chart-container">
+            <h3>Accelerometer (m/s²)</h3>
+            <canvas id="accelChart"></canvas>
+        </div>
+        <div class="chart-container">
+            <h3>Filtered Gyro Beta & Autocorrelation</h3>
+            <canvas id="analysisChart"></canvas>
+        </div>
+    </div>
+
+    <div class="container logs">
+        <h2>Event & Error Log</h2>
+        <pre id="logArea"></pre>
+    </div>
+
+    <script>
+        const permissionButton = document.getElementById('permissionButton');
+        const startButton = document.getElementById('startButton');
+        const statusDiv = document.getElementById('status');
+        const bpmValueSpan = document.getElementById('bpmValue');
+        const logArea = document.getElementById('logArea');
+        const effectiveSampleRateP = document.getElementById('effectiveSampleRate');
+
+        const RECORDING_DURATION_MS = 30000; // 30 seconds
+        const TARGET_SAMPLE_RATE_HZ = 100; // Ideal, actual may vary
+        const LOW_PASS_CUTOFF_HZ = 0.4;
+        const MIN_BREATH_FREQ_HZ = 0.16; // ~10 BPM
+        const MAX_BREATH_FREQ_HZ = 0.5;  // ~30 BPM (wider than 0.33 for robustness)
+
+        let gyroData = { t: [], x: [], y: [], z: [] };
+        let accelData = { t: [], x: [], y: [], z: [] };
+        
+        let gyroChart, accelChart, analysisChart;
+        let chartUpdateThrottle = 0;
+        const CHART_UPDATE_INTERVAL = 5; // Update chart every 5 data points
+
+        let isRecording = false;
+        let permissionGranted = false;
+        let recordingTimeoutId;
+
+        function log(message, type = 'event') {
+            const timestamp = new Date().toLocaleTimeString();
+            const entry = `[${timestamp}] [${type.toUpperCase()}] ${message}\n`;
+            logArea.textContent = entry + logArea.textContent;
+            if (type === 'error') console.error(message);
+            else console.log(message);
+        }
+
+        permissionButton.addEventListener('click', requestSensorPermissions);
+        startButton.addEventListener('click', startRecording);
+
+        async function requestSensorPermissions() {
+            log('Attempting to request sensor permissions...');
+            if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+                try {
+                    const motionPermission = await DeviceMotionEvent.requestPermission();
+                    if (motionPermission === 'granted') {
+                        log('DeviceMotionEvent permission granted.');
+                        if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                            const orientationPermission = await DeviceOrientationEvent.requestPermission();
+                            if (orientationPermission === 'granted') {
+                                log('DeviceOrientationEvent permission granted.');
+                                permissionGranted = true;
+                                startButton.disabled = false;
+                                permissionButton.disabled = true;
+                                permissionButton.textContent = 'Permissions Granted';
+                                log('All sensor permissions granted.');
+                            } else {
+                                log('DeviceOrientationEvent permission denied.', 'error');
+                                alert('DeviceOrientationEvent permission denied. This app needs it to function.');
+                            }
+                        } else {
+                             // For browsers/devices that don't require specific permission for DeviceOrientationEvent after DeviceMotionEvent
+                            log('DeviceOrientationEvent does not require separate permission or API not available. Assuming access if DeviceMotionEvent is granted.');
+                            permissionGranted = true;
+                            startButton.disabled = false;
+                            permissionButton.disabled = true;
+                            permissionButton.textContent = 'Permissions Granted';
+                        }
+                    } else {
+                        log('DeviceMotionEvent permission denied.', 'error');
+                        alert('DeviceMotionEvent permission denied. This app needs it to function.');
+                    }
+                } catch (error) {
+                    log(`Error requesting permissions: ${error.message}`, 'error');
+                    // This can happen if not on HTTPS or on non-iOS browsers where this API doesn't exist
+                    // For non-iOS, we often don't need to call requestPermission
+                    if (navigator.userAgent.toLowerCase().indexOf('iphone') === -1 &&
+                        navigator.userAgent.toLowerCase().indexOf('ipad') === -1) {
+                        log('Assuming permissions are implicitly granted on non-iOS device or API not needed.');
+                        permissionGranted = true;
+                        startButton.disabled = false;
+                        permissionButton.disabled = true;
+                        permissionButton.textContent = 'Permissions Assumed (Non-iOS)';
+                    } else {
+                         alert('Error requesting sensor permissions. Make sure you are on HTTPS.');
+                    }
+                }
+            } else {
+                log('DeviceMotionEvent.requestPermission API not found. Assuming permissions are implicitly granted (e.g., on Android/Desktop Chrome).');
+                permissionGranted = true;
+                startButton.disabled = false;
+                permissionButton.disabled = true;
+                permissionButton.textContent = 'Permissions Assumed';
+            }
+            if (permissionGranted) {
+                initCharts(); // Initialize charts once permissions are sorted
+            }
+        }
+
+        function handleDeviceMotion(event) {
+            if (!isRecording) return;
+
+            const now = performance.now();
+            
+            if (event.accelerationIncludingGravity) {
+                accelData.t.push(now);
+                accelData.x.push(event.accelerationIncludingGravity.x || 0);
+                accelData.y.push(event.accelerationIncludingGravity.y || 0);
+                accelData.z.push(event.accelerationIncludingGravity.z || 0);
+            }
+
+            if (event.rotationRate) { // This is the gyroscope data
+                gyroData.t.push(now); // Use a consistent timestamp source
+                gyroData.x.push(event.rotationRate.alpha || 0); // yaw
+                gyroData.y.push(event.rotationRate.beta || 0);  // pitch
+                gyroData.z.push(event.rotationRate.gamma || 0); // roll
+            }
+            
+            chartUpdateThrottle++;
+            if (chartUpdateThrottle % CHART_UPDATE_INTERVAL === 0) {
+                updateCharts();
+            }
+        }
+        
+        function startRecording() {
+            if (!permissionGranted) {
+                log('Sensor permissions not granted.', 'error');
+                alert('Please grant sensor permissions first.');
+                return;
+            }
+            if (isRecording) return;
+
+            isRecording = true;
+            startButton.disabled = true;
+            startButton.textContent = 'Recording...';
+            statusDiv.textContent = `Status: Recording (0/${RECORDING_DURATION_MS/1000}s)`;
+            bpmValueSpan.textContent = '--';
+            effectiveSampleRateP.textContent = 'Effective Sample Rate: -- Hz';
+
+            // Reset data
+            gyroData = { t: [], x: [], y: [], z: [] };
+            accelData = { t: [], x: [], y: [], z: [] };
+            resetCharts();
+
+            log('Recording started.');
+
+            window.addEventListener('devicemotion', handleDeviceMotion, true);
+
+            let secondsElapsed = 0;
+            const intervalTimer = setInterval(() => {
+                secondsElapsed++;
+                statusDiv.textContent = `Status: Recording (${secondsElapsed}/${RECORDING_DURATION_MS/1000}s)`;
+                if (secondsElapsed * 1000 >= RECORDING_DURATION_MS) {
+                    clearInterval(intervalTimer);
+                }
+            }, 1000);
+
+            recordingTimeoutId = setTimeout(() => {
+                stopRecording();
+                clearInterval(intervalTimer); // Ensure cleared
+            }, RECORDING_DURATION_MS);
+        }
+
+        function stopRecording() {
+            if (!isRecording) return;
+            isRecording = false;
+            
+            window.removeEventListener('devicemotion', handleDeviceMotion, true);
+            
+            clearTimeout(recordingTimeoutId);
+            startButton.disabled = false;
+            startButton.textContent = 'Start Recording (30s)';
+            statusDiv.textContent = 'Status: Processing...';
+            log('Recording stopped. Processing data...');
+
+            if (gyroData.t.length < TARGET_SAMPLE_RATE_HZ * 5) { // Need at least 5s of data at target rate
+                log('Not enough gyroscope data collected to process.', 'error');
+                statusDiv.textContent = 'Status: Error - Not enough data.';
+                bpmValueSpan.textContent = 'Error';
+                return;
+            }
+            
+            processData();
+        }
+        
+        function processData() {
+            // We'll use gyroData.y (beta/pitch rate) as it's often sensitive to chest rise/fall
+            // when phone is held against chest screen out (portrait).
+            let signal = gyroData.y; 
+            let timestamps = gyroData.t;
+
+            if (signal.length === 0) {
+                log('No gyroscope beta data to process.', 'error');
+                statusDiv.textContent = 'Status: Error - No gyro data.';
+                bpmValueSpan.textContent = 'Error';
+                return;
+            }
+
+            // 1. Calculate Effective Sample Rate
+            const durationSeconds = (timestamps[timestamps.length - 1] - timestamps[0]) / 1000;
+            const actualSampleRate = (signal.length -1) / durationSeconds; // -1 because N points = N-1 intervals
+            effectiveSampleRateP.textContent = `Effective Sample Rate: ${actualSampleRate.toFixed(2)} Hz`;
+            log(`Effective sample rate: ${actualSampleRate.toFixed(2)} Hz over ${durationSeconds.toFixed(2)}s`);
+
+            // 2. Low-pass filter (EMA)
+            // alpha = dt / (RC + dt) where dt = 1/sampleRate, RC = 1/(2*PI*cutoff)
+            const dt = 1 / actualSampleRate;
+            const RC = 1 / (2 * Math.PI * LOW_PASS_CUTOFF_HZ);
+            const alpha = dt / (RC + dt);
+            let filteredSignal = [signal[0]];
+            for (let i = 1; i < signal.length; i++) {
+                filteredSignal[i] = alpha * signal[i] + (1 - alpha) * filteredSignal[i-1];
+            }
+            log(`Applied EMA low-pass filter with ${LOW_PASS_CUTOFF_HZ}Hz cutoff.`);
+
+            // 3. Autocorrelation
+            let autocorr = autocorrelation(filteredSignal);
+            
+            // 4. Normalize autocorrelation
+            const maxAutocorr = Math.max(...autocorr.map(Math.abs));
+            let normalizedAutocorr = autocorr.map(v => v / maxAutocorr);
+            log('Autocorrelation computed and normalized.');
+
+            // Plot filtered signal and autocorrelation
+            if (analysisChart) {
+                analysisChart.data.labels = Array.from({length: filteredSignal.length}, (_, i) => (i / actualSampleRate).toFixed(2));
+                analysisChart.data.datasets[0].data = filteredSignal;
+                analysisChart.data.datasets[1].data = normalizedAutocorr.slice(0, filteredSignal.length); // Match length for x-axis
+                analysisChart.update();
+            }
+
+
+            // 5. Peak finding in autocorrelation
+            // Look for peaks in the lag range corresponding to MIN_BREATH_FREQ_HZ to MAX_BREATH_FREQ_HZ
+            const minLag = Math.floor(actualSampleRate / MAX_BREATH_FREQ_HZ);
+            const maxLag = Math.ceil(actualSampleRate / MIN_BREATH_FREQ_HZ);
+            
+            log(`Searching for autocorrelation peak between lags ${minLag} and ${maxLag}`);
+
+            let bestLag = -1;
+            let maxPeakValue = -Infinity;
+
+            // Start search after a very small initial lag to avoid issues near 0
+            const searchStartLag = Math.max(10, Math.floor(actualSampleRate * 0.5)); // e.g., ignore first 0.5s
+
+            for (let lag = minLag; lag < Math.min(maxLag, normalizedAutocorr.length -1); lag++) {
+                // Basic peak: current point is greater than its neighbors
+                if (lag > searchStartLag && normalizedAutocorr[lag] > normalizedAutocorr[lag-1] && normalizedAutocorr[lag] > normalizedAutocorr[lag+1]) {
+                    if (normalizedAutocorr[lag] > maxPeakValue) {
+                        maxPeakValue = normalizedAutocorr[lag];
+                        bestLag = lag;
+                    }
+                }
+            }
+            
+            if (bestLag !== -1 && maxPeakValue > 0.1) { // Threshold for peak significance
+                const periodSeconds = bestLag / actualSampleRate;
+                const bpm = 60 / periodSeconds;
+                log(`Found prominent peak at lag ${bestLag} (value: ${maxPeakValue.toFixed(3)}), period: ${periodSeconds.toFixed(2)}s, BPM: ${bpm.toFixed(1)}`);
+                bpmValueSpan.textContent = bpm.toFixed(1);
+                statusDiv.textContent = 'Status: Completed';
+            } else {
+                log('Could not find a sufficiently prominent peak in autocorrelation for breath rate.', 'error');
+                bpmValueSpan.textContent = 'N/A';
+                statusDiv.textContent = 'Status: Could not determine BPM';
+            }
+        }
+
+        function autocorrelation(signal) {
+            const N = signal.length;
+            const autocorr = new Array(N).fill(0);
+            for (let lag = 0; lag < N; lag++) {
+                let sum = 0;
+                for (let i = 0; i < N - lag; i++) {
+                    sum += signal[i] * signal[i + lag];
+                }
+                autocorr[lag] = sum / N; // Or sum / (N - lag) for unbiased estimator
+            }
+            return autocorr;
+        }
+
+        function initCharts() {
+            const commonOptions = {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: { 
+                        type: 'linear', // Using time as value
+                        title: { display: true, text: 'Time (ms since start)' }
+                    },
+                    y: { title: { display: true, text: 'Value' } }
+                },
+                animation: false, // Disable for performance with streaming data
+                elements: {
+                    point: { radius: 0 }, // No points, just lines
+                    line: { tension: 0.1 } // Slight smoothing of lines
+                }
+            };
+
+            const gyroCtx = document.getElementById('gyroChart').getContext('2d');
+            gyroChart = new Chart(gyroCtx, {
+                type: 'line',
+                data: {
+                    labels: [], // timestamps
+                    datasets: [
+                        { label: 'Gyro X (alpha)', data: [], borderColor: 'red', fill: false },
+                        { label: 'Gyro Y (beta)', data: [], borderColor: 'green', fill: false },
+                        { label: 'Gyro Z (gamma)', data: [], borderColor: 'blue', fill: false }
+                    ]
+                },
+                options: { ...commonOptions, scales: { ...commonOptions.scales, y: {title: {display:true, text: 'Rotation Rate (rad/s)'}}}}
+            });
+
+            const accelCtx = document.getElementById('accelChart').getContext('2d');
+            accelChart = new Chart(accelCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        { label: 'Accel X', data: [], borderColor: 'orange', fill: false },
+                        { label: 'Accel Y', data: [], borderColor: 'purple', fill: false },
+                        { label: 'Accel Z', data: [], borderColor: 'brown', fill: false }
+                    ]
+                },
+                options: { ...commonOptions, scales: { ...commonOptions.scales, y: {title: {display:true, text: 'Acceleration (m/s^2)'}}}}
+            });
+            
+            const analysisCtx = document.getElementById('analysisChart').getContext('2d');
+            analysisChart = new Chart(analysisCtx, {
+                type: 'line',
+                data: {
+                    labels: [], // samples or time
+                    datasets: [
+                        { label: 'Filtered Gyro Beta', data: [], borderColor: 'cyan', fill: false, yAxisID: 'ySignal'},
+                        { label: 'Normalized Autocorrelation', data: [], borderColor: 'magenta', fill: false, yAxisID: 'yAutocorr' }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { title: { display: true, text: 'Time (s) / Lag (samples for Autocorr)' }},
+                        ySignal: { 
+                            type: 'linear', 
+                            position: 'left',
+                            title: { display: true, text: 'Filtered Signal Amplitude'}
+                        },
+                        yAutocorr: {
+                            type: 'linear',
+                            position: 'right',
+                            title: { display: true, text: 'Autocorrelation'},
+                            min: -1,
+                            max: 1,
+                            grid: { drawOnChartArea: false } // only want the grid for ySignal
+                        }
+                    },
+                     animation: false,
+                     elements: { point: { radius: 0 }, line: { tension: 0.1 } }
+                }
+            });
+            log('Charts initialized.');
+        }
+        
+        function resetCharts() {
+            const charts = [gyroChart, accelChart, analysisChart];
+            charts.forEach(chart => {
+                if (chart) {
+                    chart.data.labels = [];
+                    chart.data.datasets.forEach(dataset => {
+                        dataset.data = [];
+                    });
+                    chart.update();
+                }
+            });
+        }
+
+        function updateCharts() {
+            if (!gyroChart || !accelChart) return;
+
+            // Limit history to avoid performance degradation
+            const maxDataPoints = 300; // Approx 3s at 100Hz, or 10s at 30Hz
+
+            // Gyro Chart
+            gyroChart.data.labels = gyroData.t.slice(-maxDataPoints);
+            gyroChart.data.datasets[0].data = gyroData.x.slice(-maxDataPoints);
+            gyroChart.data.datasets[1].data = gyroData.y.slice(-maxDataPoints);
+            gyroChart.data.datasets[2].data = gyroData.z.slice(-maxDataPoints);
+            gyroChart.update('none'); // 'none' for no animation
+
+            // Accel Chart
+            accelChart.data.labels = accelData.t.slice(-maxDataPoints);
+            accelChart.data.datasets[0].data = accelData.x.slice(-maxDataPoints);
+            accelChart.data.datasets[1].data = accelData.y.slice(-maxDataPoints);
+            accelChart.data.datasets[2].data = accelData.z.slice(-maxDataPoints);
+            accelChart.update('none');
+        }
+
+        // Initial log message
+        log('App initialized. Please request sensor permissions.');
+        // For development: automatically try to grant if not iOS
+        if (navigator.userAgent.toLowerCase().indexOf('iphone') === -1 &&
+            navigator.userAgent.toLowerCase().indexOf('ipad') === -1 &&
+            typeof DeviceMotionEvent.requestPermission !== 'function') {
+            log('Attempting to enable sensors for non-iOS/non-permission API environment.');
+            permissionGranted = true;
+            startButton.disabled = false;
+            permissionButton.disabled = true;
+            permissionButton.textContent = 'Permissions Assumed (Non-iOS)';
+            initCharts();
+        }
+
+    </script>
+</body>
+</html>
