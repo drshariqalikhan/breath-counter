@@ -118,13 +118,13 @@
         const zAccelDisplay = document.getElementById('zAccelDisplay');
         const logArea = document.getElementById('logArea');
 
-        let systemActive = false; // Overall system active (after Start Monitoring and permissions)
-        let isMonitoringBreaths = false; // Actual breath detection active (after calibration)
+        let systemActive = false; 
+        let isMonitoringBreaths = false; 
         let lastBeta = null;
         let breathState = 'IDLE';
         let breathTimestamps = [];
         const MAX_TIMESTAMPS = 10;
-        const BETA_TILT_THRESHOLD = 1.0; // Degrees. TUNE THIS!
+        const BETA_TILT_THRESHOLD = 1.0; 
         const MIN_BREATH_INTERVAL_MS = 1000;
         let lastBreathEventTime = 0;
 
@@ -133,7 +133,7 @@
         let calibrationToneGain = null;
 
         const CALIBRATION_DURATION_MS = 3000;
-        let calibrationState = 'NOT_CALIBRATED'; // NOT_CALIBRATED, AWAITING_CALIBRATION, CALIBRATING_PROMPT, CALIBRATING_HOLD, CALIBRATED
+        let calibrationState = 'NOT_CALIBRATED'; 
         let calibrationTimer = null;
         let calibrationBetaValues = [];
         let calibratedInhalePeakBeta = null;
@@ -166,8 +166,6 @@
             }
         }
 
-        function playBeep(duration = 0.1, frequency = 880, volume = 0.3) { /* ... (same as before) ... */ }
-        // Beep function (same as before)
         function playBeep(duration = 0.1, frequency = 880, volume = 0.3) {
             if (!audioContext || audioContext.state !== 'running') return;
             try {
@@ -192,15 +190,15 @@
                 return;
             }
             if (calibrationToneOscillator) {
-                stopCalibrationTone(); // Stop if already playing
+                stopCalibrationTone(); 
             }
             try {
                 calibrationToneOscillator = audioContext.createOscillator();
                 calibrationToneGain = audioContext.createGain();
 
                 calibrationToneOscillator.type = 'sine';
-                calibrationToneOscillator.frequency.setValueAtTime(440, audioContext.currentTime); // A4 note
-                calibrationToneGain.gain.setValueAtTime(0.2, audioContext.currentTime); // Lower volume
+                calibrationToneOscillator.frequency.setValueAtTime(440, audioContext.currentTime); 
+                calibrationToneGain.gain.setValueAtTime(0.2, audioContext.currentTime); 
 
                 calibrationToneOscillator.connect(calibrationToneGain);
                 calibrationToneGain.connect(audioContext.destination);
@@ -238,7 +236,7 @@
                 return;
             }
 
-            isMonitoringBreaths = false; // Pause breath detection during calibration
+            isMonitoringBreaths = false; 
             startButton.disabled = true;
             calibrateButton.disabled = true;
             calibrationState = 'CALIBRATING_PROMPT';
@@ -246,7 +244,7 @@
             logMessage('Calibration: Prompting user to inhale and hold.');
             
             setTimeout(() => {
-                if (calibrationState !== 'CALIBRATING_PROMPT') return; // Process might have been stopped
+                if (calibrationState !== 'CALIBRATING_PROMPT') return; 
                 
                 calibrationState = 'CALIBRATING_HOLD';
                 calibrationBetaValues = [];
@@ -267,11 +265,11 @@
                     stopCalibrationTone();
                     if (calibrationState === 'CALIBRATING_HOLD') finishCalibration();
                 }, CALIBRATION_DURATION_MS);
-            }, 2000); // 2 seconds to inhale before hold starts
+            }, 2000); 
         }
 
         function finishCalibration() {
-            stopCalibrationTone(); // Ensure tone is stopped
+            stopCalibrationTone(); 
             if (calibrationBetaValues.length > 0) {
                 calibratedInhalePeakBeta = calibrationBetaValues.reduce((sum, val) => sum + val, 0) / calibrationBetaValues.length;
                 calibratedBetaDisplay.textContent = calibratedInhalePeakBeta.toFixed(2) + '°';
@@ -283,11 +281,11 @@
             calibrationState = 'CALIBRATED';
             movementDisplay.textContent = 'Calibrated. Breathe normally to monitor.';
             logMessage('Normal breath monitoring can now start.');
-            isMonitoringBreaths = true; // Enable breath detection
-            startButton.disabled = false; // Re-enable start/stop
-            calibrateButton.disabled = false; // Re-enable calibrate
+            isMonitoringBreaths = true; 
+            startButton.disabled = false; 
+            calibrateButton.disabled = false; 
             calibrateButton.textContent = 'Re-Calibrate';
-            lastBeta = null; // Reset for fresh breath detection
+            lastBeta = null; 
             breathState = 'IDLE';
         }
 
@@ -324,21 +322,26 @@
                 
                 if (!window.eventListenersAttached) {
                     window.addEventListener('deviceorientation', handleOrientationEvent);
-                    window.addEventListener('devicemotion', handleMotionEvent); // For Z-accel FYI
+                    window.addEventListener('devicemotion', handleMotionEvent); 
                     window.eventListenersAttached = true;
                     logMessage('Sensor event listeners attached.');
                 }
                 startButton.textContent = 'Stop Monitoring';
                 movementDisplay.textContent = 'System active. Tap "Calibrate".';
-                calibrateButton.style.display = 'inline-block';
+                
+                // *** CORRECTED ORDER AND ENSURED VISIBILITY ***
+                calibrateButton.style.display = 'inline-block'; 
                 calibrateButton.disabled = false;
+                // *** END CORRECTION ***
             }
-            startButton.disabled = false; // Always re-enable start button after attempt
+            // This ensures the "Start Monitoring" / "Stop Monitoring" button is always re-enabled
+            // after the async permission request, regardless of outcome.
+            startButton.disabled = false; 
         }
 
         function stopSystem() {
             logMessage('Stopping system and monitoring.');
-            stopCalibrationTone(); // Ensure tone is off
+            stopCalibrationTone(); 
             if (calibrationTimer) clearTimeout(calibrationTimer);
             
             if (window.eventListenersAttached) {
@@ -379,8 +382,6 @@
             }
         }
 
-        function handleMotionEvent(event) { /* ... (same as before for Z-accel FYI) ... */ }
-         // For Z-Accel FYI display
         function handleMotionEvent(event) {
             if (systemActive && event.accelerationIncludingGravity && event.accelerationIncludingGravity.z !== null) {
                 zAccelDisplay.textContent = event.accelerationIncludingGravity.z.toFixed(3);
@@ -404,7 +405,7 @@
             }
 
             if (!isMonitoringBreaths || calibrationState !== 'CALIBRATED') {
-                return; // Only detect breaths if calibrated and monitoring
+                return; 
             }
             
             if (lastBeta === null) {
@@ -439,7 +440,6 @@
             lastBeta = currentBeta;
         }
         
-        function calculateBreathRate() { /* ... (same as before) ... */ }
         function calculateBreathRate() {
             if (breathTimestamps.length < 2) {
                 breathRateDisplay.textContent = '--'; return;
@@ -456,15 +456,19 @@
         }
 
         startButton.addEventListener('click', async () => {
-            startButton.disabled = true; 
+            startButton.disabled = true; // Disable immediately to prevent double clicks
             if (!systemActive) {
                 if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
                      logMessage('CRITICAL: Page not served over HTTPS.', 'ERROR');
                      alert('For sensor access on iOS, this page MUST be served over HTTPS.');
+                     // Optionally, re-enable startButton here if you want to allow another try without refresh
+                     // startButton.disabled = false; 
+                     // return; // Or stop execution
                 }
-                await requestAndStartSystem();
+                await requestAndStartSystem(); // This function now re-enables startButton internally
             } else {
                 stopSystem();
+                // stopSystem calls resetAppState, which re-enables startButton
             }
         });
 
