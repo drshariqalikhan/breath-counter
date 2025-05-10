@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Abdominal Breath Monitor</title>
+    <title>Abdominal Breath Monitor (Gyro)</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -94,7 +94,7 @@
 </head>
 <body>
     <div class="container">
-        <h1>Abdominal Breath Monitor</h1>
+        <h1>Abdominal Breath Monitor (Gyro)</h1>
 
         <div class="instructions">
             <strong>Instructions:</strong>
@@ -102,8 +102,8 @@
                 <li>Ensure this page is served over HTTPS.</li>
                 <li>Tap "Start Monitoring".</li>
                 <li>Grant sensor permissions.</li>
-                <li>Follow on-screen calibration prompts.</li>
-                <li>Lie down, place iPhone on abdomen, breathe normally.</li>
+                <li>Follow on-screen calibration prompts (using phone tilt).</li>
+                <li>Lie down, place iPhone on abdomen (top towards head), breathe normally.</li>
             </ol>
         </div>
 
@@ -116,9 +116,9 @@
             <p>Breath Rate: <span id="breathRateDisplay">--</span> BPM</p>
         </div>
         <div class="data-display" style="font-size:12px; text-align:left;">
-            <p>Raw Z-Accel: <span id="zAccelDisplay">--</span> m/s²</p>
-            <p>Calibrated Peak Inhale Z: <span id="calibratedZDisplay">--</span></p>
-            <p>Raw Beta (Gyro X-tilt): <span id="betaGyroDisplay">--</span> °/s</p>
+            <p>Raw Beta (Gyro X-tilt): <span id="betaGyroDisplay">--</span> °</p>
+            <p>Calibrated Peak Inhale Beta: <span id="calibratedBetaDisplay">--</span></p>
+            <p>Raw Z-Accel (FYI): <span id="zAccelDisplay">--</span> m/s²</p>
         </div>
 
         <h2>Event & Error Log</h2>
@@ -129,17 +129,18 @@
         const startButton = document.getElementById('startButton');
         const movementDisplay = document.getElementById('movementDisplay');
         const breathRateDisplay = document.getElementById('breathRateDisplay');
-        const zAccelDisplay = document.getElementById('zAccelDisplay');
-        const calibratedZDisplay = document.getElementById('calibratedZDisplay');
         const betaGyroDisplay = document.getElementById('betaGyroDisplay');
+        const calibratedBetaDisplay = document.getElementById('calibratedBetaDisplay');
+        const zAccelDisplay = document.getElementById('zAccelDisplay'); // Keep for FYI
         const logArea = document.getElementById('logArea');
 
         let isMonitoring = false;
-        let lastZ = null;
+        let lastBeta = null; // For gyroscope beta
         let breathState = 'IDLE'; // IDLE, RISING, FALLING
         let breathTimestamps = [];
         const MAX_TIMESTAMPS = 10;
-        const MOVEMENT_THRESHOLD = 0.15; // m/s^2 - Tune this!
+        // **** CRITICAL: TUNE THIS VALUE ****
+        const BETA_TILT_THRESHOLD = 1.0; // Degrees. Start with 1-3 degrees and adjust.
         const MIN_BREATH_INTERVAL_MS = 1000;
         let lastBreathEventTime = 0;
 
@@ -148,8 +149,8 @@
         const CALIBRATION_DURATION_MS = 3000;
         let calibrationState = 'NOT_CALIBRATED'; // NOT_CALIBRATED, CALIBRATING_PROMPT, CALIBRATING_HOLD, CALIBRATED
         let calibrationTimer = null;
-        let calibrationZValues = [];
-        let calibratedInhalePeakZ = null;
+        let calibrationBetaValues = [];
+        let calibratedInhalePeakBeta = null;
 
         function logMessage(message, type = 'INFO') {
             const now = new Date();
@@ -177,8 +178,7 @@
                     audioContext = new (window.AudioContext || window.webkitAudioContext)();
                     logMessage('AudioContext initialized.');
                 } catch (e) {
-                    logMessage('Web Audio API not supported.', 'ERROR');
-                    audioContext = null;
+                    logMessage('Web Audio API not supported.', 'ERROR'); audioContext = null;
                 }
             } else if (audioContext.state === 'suspended') {
                 audioContext.resume().then(() => logMessage('AudioContext resumed.'))
@@ -187,10 +187,7 @@
         }
 
         function playBeep(duration = 0.1, frequency = 880, volume = 0.3) {
-            if (!audioContext || audioContext.state !== 'running') {
-                // logMessage('AudioContext not ready for beep.', 'WARN'); // Can be noisy
-                return;
-            }
+            if (!audioContext || audioContext.state !== 'running') return;
             try {
                 const oscillator = audioContext.createOscillator();
                 const gainNode = audioContext.createGain();
@@ -203,9 +200,7 @@
                 gainNode.connect(audioContext.destination);
                 oscillator.start(audioContext.currentTime);
                 oscillator.stop(audioContext.currentTime + duration);
-            } catch (e) {
-                logMessage(`Error playing beep: ${e.message}`, 'ERROR');
-            }
+            } catch (e) { logMessage(`Error playing beep: ${e.message}`, 'ERROR'); }
         }
 
         function startCalibrationPhase() {
@@ -213,72 +208,63 @@
             movementDisplay.textContent = 'Inhale fully, then HOLD your breath...';
             logMessage('Calibration: Prompting user to inhale and hold.');
             
-            // Give user a moment to inhale before starting the hold timer
             setTimeout(() => {
-                if (calibrationState !== 'CALIBRATING_PROMPT') return; // User might have stopped
-
+                if (calibrationState !== 'CALIBRATING_PROMPT') return;
                 calibrationState = 'CALIBRATING_HOLD';
-                calibrationZValues = [];
+                calibrationBetaValues = [];
                 movementDisplay.textContent = `HOLDING breath... ${CALIBRATION_DURATION_MS/1000}s`;
                 logMessage(`Calibration: Holding for ${CALIBRATION_DURATION_MS/1000} seconds.`);
 
                 let countdown = CALIBRATION_DURATION_MS / 1000;
                 const countdownInterval = setInterval(() => {
                     countdown--;
-                    if (countdown > 0) {
+                    if (countdown > 0 && calibrationState === 'CALIBRATING_HOLD') {
                         movementDisplay.textContent = `HOLDING breath... ${countdown}s`;
                     }
                 }, 1000);
 
-
-                // Add motion listener specifically for calibration if not already active
-                // Or rely on the main motion listener to populate calibrationZValues if active
-                if (!isMonitoring) { // if startMonitoring hasn't attached its own listener yet
-                    window.addEventListener('devicemotion', handleMotionEvent);
+                // Ensure orientation listener is active for calibration
+                if (!isMonitoring && !window.eventListenersAttached) { // Simplified check
+                    window.addEventListener('deviceorientation', handleOrientationEvent);
+                    window.addEventListener('devicemotion', handleMotionEvent); // For Z-accel FYI
+                    window.eventListenersAttached = true;
                 }
-
 
                 calibrationTimer = setTimeout(() => {
                     clearInterval(countdownInterval);
-                    finishCalibration();
+                    if (calibrationState === 'CALIBRATING_HOLD') finishCalibration();
                 }, CALIBRATION_DURATION_MS);
-            }, 2000); // 2 seconds to inhale before hold starts
+            }, 2000);
         }
 
         function finishCalibration() {
-            if (calibrationZValues.length > 0) {
-                calibratedInhalePeakZ = calibrationZValues.reduce((sum, val) => sum + val, 0) / calibrationZValues.length;
-                calibratedZDisplay.textContent = calibratedInhalePeakZ.toFixed(3) + ' m/s²';
-                logMessage(`Calibration complete. Avg Peak Inhale Z: ${calibratedInhalePeakZ.toFixed(3)}`);
+            if (calibrationBetaValues.length > 0) {
+                calibratedInhalePeakBeta = calibrationBetaValues.reduce((sum, val) => sum + val, 0) / calibrationBetaValues.length;
+                calibratedBetaDisplay.textContent = calibratedInhalePeakBeta.toFixed(2) + '°';
+                logMessage(`Calibration complete. Avg Peak Inhale Beta: ${calibratedInhalePeakBeta.toFixed(2)}°`);
             } else {
-                logMessage('Calibration: No Z values collected. Using default.', 'WARN');
-                calibratedZDisplay.textContent = 'N/A';
+                logMessage('Calibration: No Beta values collected. Using default.', 'WARN');
+                calibratedBetaDisplay.textContent = 'N/A';
             }
             calibrationState = 'CALIBRATED';
             movementDisplay.textContent = 'Calibration complete. Breathe normally.';
             logMessage('Normal monitoring starting.');
             
-            // If we temporarily added the listener for calibration and aren't fully monitoring yet
-            if (!isMonitoring) { 
-                window.removeEventListener('devicemotion', handleMotionEvent); // Remove if only for calibration
-            }
-            
-            startMonitoring(); // Proceed to normal monitoring
+            // Proceed to normal monitoring
+            startMonitoring();
         }
-
 
         function requestMotionAccess() {
             logMessage('Attempting to start. Requesting permissions if needed.');
             if (window.DeviceMotionEvent && typeof DeviceMotionEvent.requestPermission === 'function') {
-                DeviceMotionEvent.requestPermission()
+                DeviceMotionEvent.requestPermission() // This usually covers deviceorientation too
                     .then(permissionState => {
                         if (permissionState === 'granted') {
-                            logMessage('Motion sensor permission granted.');
-                            // Permissions granted, now start calibration
+                            logMessage('Motion & Orientation sensor permission granted.');
                             startCalibrationPhase();
                         } else {
-                            logMessage('Motion sensor permission denied.', 'ERROR');
-                            alert('Permission denied. Enable motion sensor access in settings.');
+                            logMessage('Sensor permission denied.', 'ERROR');
+                            alert('Permission denied. Enable motion/orientation sensor access in settings.');
                             resetAppState();
                         }
                     })
@@ -287,13 +273,12 @@
                         alert('Error requesting permissions. See log.');
                         resetAppState();
                     });
-            } else if (window.DeviceMotionEvent) {
-                logMessage('Motion sensors available (non-iOS or older iOS).');
-                // Assume permission, start calibration
+            } else if (window.DeviceOrientationEvent || window.DeviceMotionEvent) {
+                logMessage('Sensors available (non-iOS 13+ or permission already granted).');
                 startCalibrationPhase();
             } else {
-                logMessage('Device Motion API not supported.', 'ERROR');
-                alert('Device Motion API not supported.');
+                logMessage('Device Orientation/Motion API not supported.', 'ERROR');
+                alert('Required sensor APIs not supported.');
                 resetAppState();
             }
         }
@@ -301,29 +286,29 @@
         function startMonitoring() {
             if (calibrationState !== 'CALIBRATED') {
                 logMessage('Calibration not complete. Please wait or restart.', 'WARN');
-                // Optionally, force calibration if not done:
-                // startCalibrationPhase(); 
                 return;
             }
-            logMessage('Starting regular motion monitoring...');
-            if (!isMonitoring) { // Avoid adding listener multiple times
-                window.addEventListener('devicemotion', handleMotionEvent);
+            logMessage('Starting regular motion monitoring (using Gyro Beta)...');
+            if (!window.eventListenersAttached) {
                 window.addEventListener('deviceorientation', handleOrientationEvent);
+                window.addEventListener('devicemotion', handleMotionEvent); // For Z-accel FYI
+                window.eventListenersAttached = true;
             }
             isMonitoring = true;
             startButton.textContent = 'Stop Monitoring';
-            startButton.disabled = false; // Re-enable in case it was disabled during async ops
-            lastZ = null; // Reset lastZ for fresh breath detection
-            breathState = 'IDLE'; // Reset breath state
+            startButton.disabled = false;
+            lastBeta = null; // Reset for fresh breath detection
+            breathState = 'IDLE';
         }
 
         function stopMonitoring() {
             logMessage('Stopping motion monitoring.');
-            window.removeEventListener('devicemotion', handleMotionEvent);
-            window.removeEventListener('deviceorientation', handleOrientationEvent);
-            
+            if (window.eventListenersAttached) {
+                window.removeEventListener('deviceorientation', handleOrientationEvent);
+                window.removeEventListener('devicemotion', handleMotionEvent);
+                window.eventListenersAttached = false;
+            }
             if (calibrationTimer) clearTimeout(calibrationTimer);
-            
             resetAppState();
         }
 
@@ -331,59 +316,73 @@
             isMonitoring = false;
             startButton.textContent = 'Start Monitoring';
             startButton.disabled = false;
-            lastZ = null;
+            lastBeta = null;
             breathState = 'IDLE';
             breathTimestamps = [];
             calibrationState = 'NOT_CALIBRATED';
-            calibrationZValues = [];
-            calibratedInhalePeakZ = null;
+            calibrationBetaValues = [];
+            calibratedInhalePeakBeta = null;
             movementDisplay.textContent = '--';
             breathRateDisplay.textContent = '--';
-            zAccelDisplay.textContent = '--';
-            calibratedZDisplay.textContent = '--';
             betaGyroDisplay.textContent = '--';
+            calibratedBetaDisplay.textContent = '--';
+            zAccelDisplay.textContent = '--';
+            if(window.eventListenersAttached) { // ensure listeners are removed if reset during calibration
+                window.removeEventListener('deviceorientation', handleOrientationEvent);
+                window.removeEventListener('devicemotion', handleMotionEvent);
+                window.eventListenersAttached = false;
+            }
         }
 
-
+        // For Z-Accel FYI display
         function handleMotionEvent(event) {
-            if (!event.accelerationIncludingGravity || event.accelerationIncludingGravity.z === null) {
+            if (event.accelerationIncludingGravity && event.accelerationIncludingGravity.z !== null) {
+                zAccelDisplay.textContent = event.accelerationIncludingGravity.z.toFixed(3);
+            } else {
+                zAccelDisplay.textContent = 'N/A';
+            }
+        }
+
+        // Primary breath detection using Gyro Beta
+        function handleOrientationEvent(event) {
+            if (event.beta === null) {
+                // logMessage('Gyro Beta data not available.', 'WARN'); // Can be noisy
+                betaGyroDisplay.textContent = 'N/A';
                 return;
             }
-            const accel = event.accelerationIncludingGravity;
-            const currentZ = accel.z;
-            zAccelDisplay.textContent = currentZ.toFixed(3);
+            const currentBeta = event.beta;
+            betaGyroDisplay.textContent = currentBeta.toFixed(2);
 
             if (calibrationState === 'CALIBRATING_HOLD') {
-                calibrationZValues.push(currentZ);
-                return; // Don't process breath detection during calibration hold
+                calibrationBetaValues.push(currentBeta);
+                return; 
             }
 
             if (!isMonitoring || calibrationState !== 'CALIBRATED') {
-                 // Only do breath detection if monitoring and calibrated
                 return;
             }
             
-            // --- Normal Breath Detection Logic ---
-            if (lastZ === null) {
-                lastZ = currentZ;
+            if (lastBeta === null) {
+                lastBeta = currentBeta;
                 return;
             }
 
-            const deltaZ = currentZ - lastZ;
+            const deltaBeta = currentBeta - lastBeta;
             const currentTime = Date.now();
 
+            // Assuming positive deltaBeta for inhale (front of phone tilts up)
             if (breathState === 'IDLE' || breathState === 'FALLING') {
-                if (deltaZ > MOVEMENT_THRESHOLD) {
-                    breathState = 'RISING';
-                    movementDisplay.textContent = 'Inhaling (Up)';
-                    logMessage('Movement: Rising (Inhale detected)');
+                if (deltaBeta > BETA_TILT_THRESHOLD) {
+                    breathState = 'RISING'; // Phone tilting "up"
+                    movementDisplay.textContent = 'Inhaling (Tilt Up)';
+                    logMessage(`Movement: Rising (Inhale, Beta change: ${deltaBeta.toFixed(2)})`);
                     playBeep();
                 }
             } else if (breathState === 'RISING') {
-                if (deltaZ < -MOVEMENT_THRESHOLD) {
-                    breathState = 'FALLING';
-                    movementDisplay.textContent = 'Exhaling (Down)';
-                    logMessage('Movement: Falling (Exhale detected)');
+                if (deltaBeta < -BETA_TILT_THRESHOLD) {
+                    breathState = 'FALLING'; // Phone tilting "down"
+                    movementDisplay.textContent = 'Exhaling (Tilt Down)';
+                    logMessage(`Movement: Falling (Exhale, Beta change: ${deltaBeta.toFixed(2)})`);
 
                     if (currentTime - lastBreathEventTime > MIN_BREATH_INTERVAL_MS) {
                         breathTimestamps.push(currentTime);
@@ -393,27 +392,15 @@
                     }
                 }
             }
-            lastZ = currentZ;
+            lastBeta = currentBeta;
         }
         
-        function handleOrientationEvent(event) {
-            if (event.beta !== null) {
-                 betaGyroDisplay.textContent = event.beta.toFixed(2);
-            } else {
-                betaGyroDisplay.textContent = 'N/A';
-            }
-        }
-
         function calculateBreathRate() {
             if (breathTimestamps.length < 2) {
-                breathRateDisplay.textContent = '--';
-                return;
+                breathRateDisplay.textContent = '--'; return;
             }
-            const firstTimestamp = breathTimestamps[0];
-            const lastTimestamp = breathTimestamps[breathTimestamps.length - 1];
-            const durationSeconds = (lastTimestamp - firstTimestamp) / 1000;
+            const durationSeconds = (breathTimestamps[breathTimestamps.length - 1] - breathTimestamps[0]) / 1000;
             const numBreathsInWindow = breathTimestamps.length - 1;
-
             if (durationSeconds > 0) {
                 const bpm = (numBreathsInWindow / durationSeconds) * 60;
                 breathRateDisplay.textContent = bpm.toFixed(1);
@@ -432,21 +419,21 @@
                 }
                 initializeAudioContext();
                 await lockScreenOrientation();
-                requestMotionAccess(); // This will now lead to calibration first
-            } else if (isMonitoring || calibrationState !== 'NOT_CALIBRATED') { // If monitoring or in calibration
-                stopMonitoring(); // This will reset everything
+                requestMotionAccess();
+            } else {
+                stopMonitoring();
             }
         });
 
-        // Initial setup
-        resetAppState(); // Ensure clean state on load
-        logMessage('App initialized. Ready for calibration and monitoring.');
+        // Global flag for event listeners to simplify add/remove logic
+        window.eventListenersAttached = false; 
+        resetAppState();
+        logMessage('App initialized (Gyro Mode). Ready for calibration and monitoring.');
         if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-            logMessage('WARNING: Page not served over HTTPS. Sensor access might be restricted.', 'WARN');
+            logMessage('WARNING: Page not served over HTTPS.', 'WARN');
         } else {
             logMessage('Page served over HTTPS or localhost. Good!', 'INFO');
         }
-
     </script>
 </body>
 </html>
