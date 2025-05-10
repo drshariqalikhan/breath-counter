@@ -6,209 +6,153 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
-            --bg-color: #121212; /* Darker base */
-            --surface-color: #1e1e1e; /* Slightly lighter for elements */
-            --primary-color: #6200EE; /* Material Design Purple */
-            --primary-variant-color: #3700B3;
-            --secondary-color: #03DAC6; /* Material Teal */
+            --bg-color: #121212;
+            --surface-color: #1e1e1e;
+            --primary-color: #03A9F4; /* Light Blue */
+            --primary-variant-color: #0277BD;
+            --secondary-color: #FFC107; /* Amber for contrast */
             --text-color-primary: rgba(255, 255, 255, 0.87);
             --text-color-secondary: rgba(255, 255, 255, 0.6);
             --slider-thumb-color: var(--secondary-color);
             --slider-track-color: rgba(255, 255, 255, 0.3);
             --circle-bg-color: var(--surface-color);
             --circle-border-color: var(--primary-color);
+            --chart-grid-color: rgba(255, 255, 255, 0.1);
+            --chart-line-color: var(--primary-color);
         }
 
-        * {
-            box-sizing: border-box;
-            -webkit-tap-highlight-color: transparent; /* Remove tap highlight on iOS */
-        }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
         html, body {
             width: 100%;
             height: 100%;
             margin: 0;
             padding: 0;
-            overflow: hidden; /* Prevent scrolling */
+            overflow: hidden;
             background-color: var(--bg-color);
             color: var(--text-color-primary);
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            display: flex; /* Enable flexbox for body */
-            flex-direction: column; /* Stack children vertically */
+            display: flex;
+            flex-direction: column; /* Main stacking direction */
         }
 
         .app-container {
             display: flex;
             flex-direction: column;
-            align-items: center; /* Center children horizontally */
-            justify-content: space-around; /* Distribute space vertically */
+            align-items: center;
+            justify-content: flex-start; /* Start content from top */
             width: 100%;
             height: 100%;
-            padding: 15px;
+            padding: 10px; /* Small padding around app */
         }
 
-        .visualization-area {
+        .app-title {
+            font-size: clamp(1.5em, 4vh, 2.2em); /* Responsive based on viewport height */
+            font-weight: 300; /* Lighter font weight */
+            color: var(--text-color-primary);
+            margin-bottom: 5px; /* Space below title */
+            letter-spacing: 2px;
+        }
+
+        .visualization-and-sliders-area {
             display: flex;
-            flex-direction: row; /* Sliders and circle in a row */
-            align-items: center; /* Vertically align sliders and circle */
-            justify-content: space-between; /* Push sliders to edges */
+            flex-direction: row; /* Sliders on sides, circle in middle */
+            align-items: center; /* Vertically align items */
+            justify-content: center; /* Center group if not taking full width */
             width: 100%;
-            /* flex-grow: 1; Allow this area to take significant space */
-            margin-bottom: 20px; /* Space before heart rate */
+            /* max-width: 700px; /* Optional: Max width for larger landscape screens */
+            margin-bottom: 10px; /* Space before pulse rate */
         }
 
         .slider-container {
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center; /* Center sliders vertically */
-            height: clamp(200px, 50vh, 350px); /* Responsive height for sliders */
-            padding: 0 5px; /* Small padding */
-            flex-shrink: 0; /* Prevent sliders from shrinking too much */
+            justify-content: center;
+            height: clamp(120px, 25vh, 200px); /* Adjust height for landscape */
+            padding: 0 10px; /* Space between slider and circle */
         }
 
-        .settings-group {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            margin-bottom: 25px; /* Space between sliders in a column */
-        }
-
+        .settings-group { display: flex; flex-direction: column; align-items: center; }
         .settings-group label {
-            font-size: 0.75em;
-            color: var(--text-color-secondary);
-            margin-bottom: 10px;
-            white-space: nowrap;
-            writing-mode: vertical-rl; /* Make label text vertical */
-            text-orientation: mixed;
-            transform: rotate(180deg); /* Correct orientation for vertical-rl */
+            font-size: 0.7em; color: var(--text-color-secondary); margin-bottom: 8px;
+            /* For landscape, horizontal labels are fine */
         }
-         .settings-group label span { /* For the value */
-             display: block;
-             margin-top: 5px;
-             font-weight: bold;
-             color: var(--text-color-primary);
-         }
-
-
+         .settings-group label span { font-weight: bold; color: var(--text-color-primary); }
         .settings-group input[type="range"] {
-            writing-mode: vertical-lr; /* Standard way for vertical sliders */
-            -webkit-appearance: slider-vertical;
-            width: 20px; /* This becomes the "thickness" of the vertical slider */
-            height: 150px; /* This becomes the "length" of the vertical slider */
-            padding: 0;
-            margin: 0; /* Reset margin */
+            /* Horizontal sliders for landscape are easier */
+            width: clamp(80px, 15vw, 120px); /* Responsive width */
+            height: 20px;
+            margin:0;
             cursor: pointer;
             background: transparent;
+             -webkit-appearance: none; appearance: none;
         }
-        /* Basic cross-browser vertical slider thumb styling */
-        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 24px; height: 24px; background: var(--slider-thumb-color); border-radius: 50%; margin-left: -2px; /* Adjust for centering based on track */ }
-        input[type=range]::-moz-range-thumb { width: 24px; height: 24px; background: var(--slider-thumb-color); border-radius: 50%; border: none; }
-        /* Track styling */
-        input[type=range]::-webkit-slider-runnable-track { width: 10px; height: 100%; background: var(--slider-track-color); border-radius: 5px; }
-        input[type=range]::-moz-range-track { width: 10px; height: 100%; background: var(--slider-track-color); border-radius: 5px; }
+        /* Horizontal Slider Styles */
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 20px; height: 20px; background: var(--slider-thumb-color); border-radius: 50%; margin-top: -7px; }
+        input[type=range]::-moz-range-thumb { width: 20px; height: 20px; background: var(--slider-thumb-color); border-radius: 50%; border: none; }
+        input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 6px; background: var(--slider-track-color); border-radius: 3px; }
+        input[type=range]::-moz-range-track { width: 100%; height: 6px; background: var(--slider-track-color); border-radius: 3px; }
 
 
         .circle-wrapper {
-            flex-grow: 1; /* Allow circle area to take remaining space between sliders */
+            /* flex-grow: 1; */ /* Don't let it grow too much if sliders are fixed width */
             display: flex;
             align-items: center;
             justify-content: center;
-            min-width: 150px; /* Ensure circle has some minimum space */
+            padding: 0 10px; /* Space around circle from sliders */
         }
 
         #breathingCircle {
             border-radius: 50%;
             background-color: var(--circle-bg-color);
-            border: 4px solid var(--circle-border-color);
-            box-shadow: 0 0 25px 0px var(--primary-variant-color);
-            transition: width 0.1s cubic-bezier(0.25, 0.1, 0.25, 1), height 0.1s cubic-bezier(0.25, 0.1, 0.25, 1);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
-            position: relative; /* For absolute positioning of content if needed */
+            border: 3px solid var(--circle-border-color);
+            box-shadow: 0 0 20px 0px var(--primary-variant-color);
+            transition: width 0.08s ease-out, height 0.08s ease-out; /* Faster transition */
+            display: flex; align-items: center; justify-content: center; text-align: center;
         }
-
-        .circle-content {
-            color: var(--text-color-primary);
-            font-weight: bold;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            /* Ensure content scales or stays within circle */
-            padding: 10px; /* Some padding inside circle */
-        }
-
-        #permissionButton {
-            background-color: var(--primary-color);
-            color: var(--bg-color);
-            border: none;
-            padding: clamp(10px, 3vw, 18px) clamp(15px, 5vw, 28px); /* Responsive padding */
-            border-radius: 30px;
-            font-size: clamp(1em, 4vw, 1.5em); /* Responsive font size */
-            cursor: pointer;
-            font-weight: bold;
-            transition: background-color 0.2s;
-        }
+        .circle-content { color: var(--text-color-primary); font-weight: bold; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 5px;}
+        #permissionButton { background-color: var(--primary-color); color: var(--bg-color); border: none; padding: clamp(8px, 2vh, 15px) clamp(12px, 3vw, 22px); border-radius: 25px; font-size: clamp(0.9em, 2.5vh, 1.3em); cursor: pointer; font-weight: bold; transition: background-color 0.2s; }
         #permissionButton:hover { background-color: var(--primary-variant-color); }
+        #breathRateDisplay { font-size: clamp(1.8em, 6vh, 3.5em); line-height: 1; }
+        #breathRateLabel { font-size: clamp(0.5em, 1.5vh, 0.8em); color: var(--text-color-secondary); }
 
-        #breathRateDisplay {
-            font-size: clamp(2em, 10vw, 4em); /* Responsive font size */
-            line-height: 1;
-        }
-        #breathRateLabel {
-            font-size: clamp(0.6em, 2.5vw, 0.9em);
-            color: var(--text-color-secondary);
-        }
 
-        .rate-info-area {
+        .rate-info-area { width: 100%; text-align: center; margin-bottom: 10px; }
+        #heartRateDisplay { font-size: clamp(0.9em, 2.5vh, 1.3em); font-weight: bold; color: var(--secondary-color); }
+
+        .chart-wrapper {
             width: 100%;
-            text-align: center;
+            /* flex-grow: 1; Take remaining vertical space */
+            max-height: clamp(100px, 25vh, 200px); /* Max height for chart in landscape */
+            padding: 0 10px; /* Padding for chart area */
         }
-        #heartRateDisplay {
-            font-size: clamp(1em, 4vw, 1.4em);
-            font-weight: bold;
-            color: var(--secondary-color);
-            margin-top: 10px; /* Space from visualization area */
-        }
-
-        #calibrationNotice {
-            position: fixed; /* Fixed position */
-            bottom: 10px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 80%;
-            max-width: 300px;
-            text-align:center;
-            background-color: rgba(0,0,0,0.75);
-            padding: 8px 12px;
+        #accelChartCanvas {
+            background-color: var(--surface-color);
             border-radius: 8px;
-            font-size: 0.8em;
-            z-index: 100;
         }
-        .hidden { display: none !important; }
 
-        /* Optional: If logs/chart are ever used again */
-        .logs, .chart-container { display: none; }
+        #calibrationNotice { position: fixed; bottom: 5px; left: 50%; transform: translateX(-50%); width: auto; min-width: 150px; text-align:center; background-color: rgba(0,0,0,0.8); padding: 5px 10px; border-radius: 5px; font-size: 0.75em; z-index: 100; }
+        .hidden { display: none !important; }
     </style>
 </head>
 <body>
     <div class="app-container">
-        <div class="visualization-area">
+        <div class="app-title">RELAX</div>
+
+        <div class="visualization-and-sliders-area">
             <div class="slider-container">
                 <div class="settings-group">
+                    <label for="breathAmpThresholdSlider">Breath Amp (<span id="breathAmpThresholdValue">0.20</span>)</label>
                     <input type="range" id="breathAmpThresholdSlider" min="0.01" max="1.0" step="0.01" value="0.2">
-                    <label for="breathAmpThresholdSlider">Breath<span id="breathAmpThresholdValue">0.20</span></label>
                 </div>
             </div>
 
             <div class="circle-wrapper">
-                <div id="breathingCircle" style="width: 150px; height: 150px;">
+                <div id="breathingCircle"> <!-- Initial size set by JS -->
                     <div class="circle-content">
                         <button id="permissionButton">Start</button>
                         <div id="breathRateDisplay" class="hidden">--</div>
@@ -219,14 +163,17 @@
 
             <div class="slider-container">
                 <div class="settings-group">
+                    <label for="heartAmpThresholdSlider">Pulse Amp (<span id="heartAmpThresholdValue">0.020</span>)</label>
                      <input type="range" id="heartAmpThresholdSlider" min="0.005" max="0.2" step="0.001" value="0.02">
-                    <label for="heartAmpThresholdSlider">Pulse<span id="heartAmpThresholdValue">0.020</span></label>
                 </div>
-            </div>
-        </div>
+             खासदार        </div>
 
         <div class="rate-info-area">
             <div id="heartRateDisplay">Pulse: -- BPM</div>
+        </div>
+
+        <div class="chart-wrapper">
+            <canvas id="accelChartCanvas"></canvas>
         </div>
 
         <div id="calibrationNotice" class="hidden">
@@ -236,39 +183,28 @@
 
     <script>
         // --- Constants & Global Vars ---
-        let BASE_CIRCLE_DIAMETER_VW = 35; // Circle base size as % of viewport width
-        const CIRCLE_SCALING_FACTOR_PER_VW_UNIT = 25; // How much accelX affects diameter, relative to VW
-        let MIN_CIRCLE_DIAMETER_PX = 80;  // Absolute min in pixels
-        let MAX_CIRCLE_DIAMETER_PX;       // Will be set based on screen size
+        let BASE_CIRCLE_DIAMETER_VH = 25; // Circle base size as % of viewport HEIGH for landscape
+        const CIRCLE_SCALING_FACTOR_MULTIPLIER = 1.5; // Increased for more sensitivity (applied to accelX)
+                                                     // This means 1 m/s^2 will scale it by 1.5 * its base size change.
+                                                     // Effectively, accelX * this_multiplier * (some_base_factor)
+        let MIN_CIRCLE_DIAMETER_PX = 60;
+        let MAX_CIRCLE_DIAMETER_PX;
 
+        const CHART_MAX_POINTS = 100; // How many points on the chart
 
-        const SAMPLING_INTERVAL_MS = 100; // 10 Hz
-        // (Rest of the JS constants and variables from previous version)
-        const MAX_CHART_POINTS = 150;
-        const SG_WINDOW_SIZE = 5;
-        const SG_COEFFICIENTS = [-3, 12, 17, 12, -3];
-        const SG_DENOMINATOR = 35;
-        const MAX_RAW_DATA_STORAGE = MAX_CHART_POINTS * 2;
-        const CALIBRATION_DELAY_MS = 2000;
-        const CALIBRATION_DURATION_MS = 5000;
+        // (Rest of the JS constants and variables: SAMPLING_INTERVAL_MS, SG_FILTER, etc.)
+        const SAMPLING_INTERVAL_MS = 100;
+        const SG_WINDOW_SIZE = 5; const SG_COEFFICIENTS = [-3, 12, 17, 12, -3]; const SG_DENOMINATOR = 35;
+        const MAX_RAW_DATA_STORAGE = CHART_MAX_POINTS * 2; // Enough for chart + filter lookback
+        const CALIBRATION_DELAY_MS = 2000; const CALIBRATION_DURATION_MS = 5000;
         const TARGET_SENSOR_KEY = 'accelX';
-
-        let MIN_BREATH_AMPLITUDE_THRESHOLD = 0.20;
-        const MAX_BREATH_EVENTS_FOR_RATE = 5; // Reduced slightly
-        let lastConfirmedBreathEventTimestamps = [];
-        let breathCycleState = 'EXPECTING_PEAK';
-        let lastDetectedBreathPeak = { value: null, time: null };
-        let lastDetectedBreathTrough = { value: null, time: null };
-
-        let MIN_HEARTBEAT_AMPLITUDE_THRESHOLD = 0.020;
-        const MAX_HEARTBEAT_EVENTS_FOR_RATE = 8; // Reduced slightly
-        const MIN_HEARTBEAT_INTERVAL_MS = 300;
-        let lastConfirmedHeartbeatTimestamps = [];
-        let lastHeartbeatPeakTime = 0;
-        let potentialHeartbeatPeak = {value: null, time: null};
-        let lookingForHeartbeatPeak = true;
-
-        let previousFilteredValueAccelX = null;
+        let MIN_BREATH_AMPLITUDE_THRESHOLD = 0.20; const MAX_BREATH_EVENTS_FOR_RATE = 5;
+        let lastConfirmedBreathEventTimestamps = []; let breathCycleState = 'EXPECTING_PEAK';
+        let lastDetectedBreathPeak = { value: null, time: null }; let lastDetectedBreathTrough = { value: null, time: null };
+        let MIN_HEARTBEAT_AMPLITUDE_THRESHOLD = 0.020; const MAX_HEARTBEAT_EVENTS_FOR_RATE = 8;
+        const MIN_HEARTBEAT_INTERVAL_MS = 300; let lastConfirmedHeartbeatTimestamps = [];
+        let lastHeartbeatPeakTime = 0; let potentialHeartbeatPeak = {value: null, time: null};
+        let lookingForHeartbeatPeak = true; let previousFilteredValueAccelX = null;
 
         // --- DOM Elements ---
         const breathingCircle = document.getElementById('breathingCircle');
@@ -276,78 +212,114 @@
         const breathRateDisplay = document.getElementById('breathRateDisplay');
         const breathRateLabel = document.getElementById('breathRateLabel');
         const heartRateDisplay = document.getElementById('heartRateDisplay');
-
         const calibrationNotice = document.getElementById('calibrationNotice');
         const calibrationText = document.getElementById('calibrationText');
-
         const breathAmpThresholdSlider = document.getElementById('breathAmpThresholdSlider');
         const breathAmpThresholdValueDisplay = document.getElementById('breathAmpThresholdValue');
         const heartAmpThresholdSlider = document.getElementById('heartAmpThresholdSlider');
         const heartAmpThresholdValueDisplay = document.getElementById('heartAmpThresholdValue');
-        const logArea = null; // Logs are removed from UI
+        const accelChartCanvas = document.getElementById('accelChartCanvas');
+        let accelChart; // Chart.js instance
 
         // --- App State ---
-        let sensorData = { [TARGET_SENSOR_KEY]: { raw: [], filteredForChart: [] } };
-        let calibrationState = 'pending';
-        let calibrationStartTimestamp;
+        let sensorData = { [TARGET_SENSOR_KEY]: { raw: [], filteredForChart: [], chartLabels: [] } };
+        let calibrationState = 'pending'; let calibrationStartTimestamp;
         let tempCalibrationData = { accelX: [], accelY: [], accelZ: [], gyroAlpha: [], gyroBeta: [], gyroGamma: [] };
         let sensorZeroOffsets = { accelX: 0, accelY: 0, accelZ: 0, gyroAlpha: 0, gyroBeta: 0, gyroGamma: 0 };
         let lastSampledTime = { [TARGET_SENSOR_KEY]: 0 };
 
         // --- Functions ---
-        function logMessage(message, type = 'info') {
-            console.log(`[${type.toUpperCase()}] ${new Date().toLocaleTimeString()}: ${message}`);
-            // UI logs removed, only console logs now
-        }
+        function logMessage(message, type = 'info') { console.log(`[${type.toUpperCase()}] ${new Date().toLocaleTimeString()}: ${message}`); }
 
         function setCircleInitialSize() {
+            const viewportHeight = window.innerHeight; // Use height for landscape base
             const viewportWidth = window.innerWidth;
-            const viewportHeight = window.innerHeight;
-            // Base diameter on the smaller of width or height for portrait
-            const referenceDim = Math.min(viewportWidth, viewportHeight);
-            
-            let baseDiameterPx = (BASE_CIRCLE_DIAMETER_VW / 100) * referenceDim;
-            
-            // Ensure it's not too small on very narrow screens or too large
-            baseDiameterPx = Math.max(80, Math.min(baseDiameterPx, referenceDim * 0.6)); // e.g., max 60% of screen
+
+            let baseDiameterPx = (BASE_CIRCLE_DIAMETER_VH / 100) * viewportHeight;
+            // Ensure it's not too small or too large relative to available width for sliders
+            baseDiameterPx = Math.max(60, Math.min(baseDiameterPx, viewportWidth * 0.4, viewportHeight * 0.5));
 
             breathingCircle.style.width = `${baseDiameterPx}px`;
             breathingCircle.style.height = `${baseDiameterPx}px`;
 
-            // Update dynamic min/max based on this initial size
-            MIN_CIRCLE_DIAMETER_PX = baseDiameterPx * 0.5; // e.g. can shrink by half
-            MAX_CIRCLE_DIAMETER_PX = baseDiameterPx * 1.8; // e.g. can expand by 80%
+            MIN_CIRCLE_DIAMETER_PX = baseDiameterPx * 0.4;
+            MAX_CIRCLE_DIAMETER_PX = baseDiameterPx * 2.2; // Allow more expansion
 
-            logMessage(`Initial circle: base ${baseDiameterPx.toFixed(0)}px, min ${MIN_CIRCLE_DIAMETER_PX.toFixed(0)}px, max ${MAX_CIRCLE_DIAMETER_PX.toFixed(0)}px`);
+            logMessage(`Initial circle: base ${baseDiameterPx.toFixed(0)}px`);
         }
 
-
         function updateCircleDiameter(zeroAdjustedAccelX) {
-            const currentBaseWidth = parseFloat(breathingCircle.style.width) || ( (BASE_CIRCLE_DIAMETER_VW / 100) * Math.min(window.innerWidth, window.innerHeight) );
-            // The scaling factor should yield a noticeable pixel change for typical accelX values.
-            // Let's make CIRCLE_SCALING_FACTOR_PER_VW_UNIT relate to the initial base diameter for more consistent feel.
-            // If accelX is 1.0, change diameter by X% of initial.
-            // Example: If accelX is 0.5 m/s^2, and scaling factor is 50 (meaning 50% of base for 1.0 m/s^2)
-            // change = 0.5 * (50/100) * currentBaseWidth = 0.25 * currentBaseWidth
-            const pixelChange = zeroAdjustedAccelX * (CIRCLE_SCALING_FACTOR_PER_VW_UNIT / 100) * ((BASE_CIRCLE_DIAMETER_VW / 100) * Math.min(window.innerWidth, window.innerHeight));
+            let absoluteBaseDiameter = parseFloat(breathingCircle.style.width); // Use current actual base
+            if (isNaN(absoluteBaseDiameter)) { // Fallback if style not set yet
+                 absoluteBaseDiameter = (BASE_CIRCLE_DIAMETER_VH / 100) * window.innerHeight;
+                 absoluteBaseDiameter = Math.max(60, Math.min(absoluteBaseDiameter, window.innerWidth * 0.4, window.innerHeight * 0.5));
+            }
+            
+            // Change is proportional to base size and accelX (with multiplier)
+            // A typical accelX for breath is ~0.1 to 0.5.
+            // If accelX = 0.2, scaling_mult = 1.5, base_change_factor = 0.5 (50% of base per 1 m/s^2)
+            // pixelChange = 0.2 * 1.5 * 0.5 * absoluteBaseDiameter = 0.15 * absoluteBaseDiameter
+            const baseChangeFactor = 0.6; // % of base diameter change for 1 m/s^2 before multiplier
+            const pixelChange = zeroAdjustedAccelX * CIRCLE_SCALING_FACTOR_MULTIPLIER * baseChangeFactor * absoluteBaseDiameter;
 
-
-            let newDiameter = parseFloat(breathingCircle.style.width) + pixelChange; // Apply change to current
-            // Or, always calculate from the absolute base size determined at load:
-            let absoluteBaseDiameter = (BASE_CIRCLE_DIAMETER_VW / 100) * Math.min(window.innerWidth, window.innerHeight);
-            absoluteBaseDiameter = Math.max(80, Math.min(absoluteBaseDiameter, Math.min(window.innerWidth, window.innerHeight) * 0.6));
-
-
-            newDiameter = absoluteBaseDiameter + pixelChange;
-
-
+            let newDiameter = absoluteBaseDiameter + pixelChange;
             newDiameter = Math.max(MIN_CIRCLE_DIAMETER_PX, Math.min(newDiameter, MAX_CIRCLE_DIAMETER_PX));
 
             breathingCircle.style.width = `${newDiameter}px`;
             breathingCircle.style.height = `${newDiameter}px`;
         }
 
-        // ... (calculateAndDisplayBreathingRate, calculateAndDisplayHeartRate, savitzkyGolaySmooth, processSignal - these remain largely the same)
+        function createAccelChart() {
+            const ctx = accelChartCanvas.getContext('2d');
+            accelChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [], // timestamps or sequence numbers
+                    datasets: [{
+                        label: 'Accel X (Filtered)',
+                        data: [], // filtered accelX values
+                        borderColor: getComputedStyle(document.documentElement).getPropertyValue('--chart-line-color').trim() || 'rgb(3, 169, 244)',
+                        borderWidth: 1.5,
+                        pointRadius: 0, // No points for cleaner line
+                        tension: 0.2 // Slight curve
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false, // Important for chart wrapper sizing
+                    animation: { duration: 0 }, // No animation for real-time
+                    scales: {
+                        x: { display: false }, // No x-axis labels for simplicity
+                        y: {
+                            display: true,
+                            ticks: { color: getComputedStyle(document.documentElement).getPropertyValue('--text-color-secondary').trim() || 'rgba(255,255,255,0.6)', font: {size: 8} },
+                            grid: { color: getComputedStyle(document.documentElement).getPropertyValue('--chart-grid-color').trim() || 'rgba(255,255,255,0.1)' },
+                            // suggestedMin: -1.5, // Adjust based on typical accelX range
+                            // suggestedMax: 1.5
+                        }
+                    },
+                    plugins: { legend: { display: false } }
+                }
+            });
+        }
+
+        function updateAccelChart(filteredValue, timestampLabel) {
+            if (!accelChart) return;
+            const dataArray = accelChart.data.datasets[0].data;
+            const labelsArray = accelChart.data.labels;
+
+            dataArray.push(filteredValue);
+            labelsArray.push(timestampLabel);
+
+            if (dataArray.length > CHART_MAX_POINTS) {
+                dataArray.shift();
+                labelsArray.shift();
+            }
+            accelChart.update('none'); // 'none' for no animation
+        }
+
+
+        // ... (calculateAndDisplayBreathingRate, calculateAndDisplayHeartRate, savitzkyGolaySmooth, processSignal - same core logic)
         function calculateAndDisplayBreathingRate() { if (lastConfirmedBreathEventTimestamps.length < 2) { breathRateDisplay.textContent = calibrationState === 'complete' ? '--' : '...'; return; } const sortedTimestamps = [...lastConfirmedBreathEventTimestamps].sort((a, b) => a - b); const oldestEventTime = sortedTimestamps[0]; const newestEventTime = sortedTimestamps[sortedTimestamps.length - 1]; const totalDurationSeconds = (newestEventTime - oldestEventTime) / 1000; const numberOfIntervals = sortedTimestamps.length - 1; if (totalDurationSeconds > 0 && numberOfIntervals > 0) { const breathsPerMinute = (numberOfIntervals / totalDurationSeconds) * 60; breathRateDisplay.textContent = breathsPerMinute.toFixed(1); } else { breathRateDisplay.textContent = "--"; } }
         function calculateAndDisplayHeartRate() { if (lastConfirmedHeartbeatTimestamps.length < 2) { heartRateDisplay.textContent = calibrationState === 'complete' ? 'Pulse: -- BPM' : 'Pulse: ...'; return; } const sortedTimestamps = [...lastConfirmedHeartbeatTimestamps].sort((a, b) => a - b); const oldestEventTime = sortedTimestamps[0]; const newestEventTime = sortedTimestamps[sortedTimestamps.length - 1]; const totalDurationSeconds = (newestEventTime - oldestEventTime) / 1000; const numberOfIntervals = sortedTimestamps.length - 1; if (totalDurationSeconds > 0 && numberOfIntervals > 0) { const beatsPerMinute = (numberOfIntervals / totalDurationSeconds) * 60; heartRateDisplay.textContent = `Pulse: ${beatsPerMinute.toFixed(0)} BPM`; } else { heartRateDisplay.textContent = "Pulse: -- BPM"; } }
         function savitzkyGolaySmooth(data) { const windowSize = SG_WINDOW_SIZE; const coeffs = SG_COEFFICIENTS; const denominator = SG_DENOMINATOR; const halfWindow = Math.floor(windowSize / 2); const smoothedData = []; if (data.length === 0) return []; const paddedData = []; for (let i = 0; i < halfWindow; i++) paddedData.push(data[0]); paddedData.push(...data); for (let i = 0; i < halfWindow; i++) paddedData.push(data[data.length - 1]); for (let i = 0; i < data.length; i++) { let sum = 0; for (let j = 0; j < windowSize; j++) sum += coeffs[j] * paddedData[i + j]; smoothedData.push(sum / denominator); } return smoothedData; }
@@ -355,13 +327,15 @@
 
 
         function processSensorDataForChart(key, zeroAdjustedValue, currentSampleTime) {
-            updateCircleDiameter(zeroAdjustedValue);
+            updateCircleDiameter(zeroAdjustedValue); // Update circle with raw zeroed value
 
             const dataObj = sensorData[key];
             dataObj.raw.push(zeroAdjustedValue);
             if (dataObj.raw.length > MAX_RAW_DATA_STORAGE) dataObj.raw.shift();
 
             const allFiltered = savitzkyGolaySmooth(dataObj.raw);
+            const latestFilteredValue = allFiltered.length > 0 ? allFiltered[allFiltered.length - 1] : 0;
+            updateAccelChart(latestFilteredValue, new Date(currentSampleTime).toLocaleTimeString().substring(0,8)); // Add to chart
 
             if (key === TARGET_SENSOR_KEY && allFiltered.length >= 2) {
                 const currentFiltered = allFiltered[allFiltered.length - 1];
@@ -373,42 +347,26 @@
             }
         }
 
-        function handleDeviceMotion(event) { /* Calibration logic largely same, UI updates adapted */
-            const currentTimeForEvent = Date.now(); if (calibrationState === 'pending') { calibrationStartTimestamp = currentTimeForEvent; calibrationState = 'delay'; calibrationNotice.classList.remove('hidden'); calibrationText.textContent = `Calibrating... (${CALIBRATION_DELAY_MS / 1000}s)`; logMessage(`Calibration: Delay phase.`); return; } const acc = event.accelerationIncludingGravity; const incomingRawValues = { accelX: acc ? acc.x || 0 : 0, accelY: acc ? acc.y || 0 : 0, accelZ: acc ? acc.z || 0 : 0, gyroAlpha: event.rotationRate ? event.rotationRate.alpha || 0 : 0, gyroBeta:  event.rotationRate ? event.rotationRate.beta || 0 : 0, gyroGamma: event.rotationRate ? event.rotationRate.gamma || 0 : 0, }; if (calibrationState === 'delay') { if (currentTimeForEvent >= calibrationStartTimestamp + CALIBRATION_DELAY_MS) { calibrationState = 'collecting'; calibrationStartTimestamp = currentTimeForEvent; calibrationText.textContent = `Collecting Data...(${CALIBRATION_DURATION_MS / 1000}s)`; logMessage(`Calibration: Collecting data.`); } else { const timeLeft = Math.round((calibrationStartTimestamp + CALIBRATION_DELAY_MS - currentTimeForEvent)/1000); calibrationText.textContent = `Calibrating... ${timeLeft}s`; return; } } if (calibrationState === 'collecting') { Object.keys(incomingRawValues).forEach(calibKey => { if (tempCalibrationData[calibKey]) tempCalibrationData[calibKey].push(incomingRawValues[calibKey]); }); if (currentTimeForEvent >= calibrationStartTimestamp + CALIBRATION_DURATION_MS) { calibrationState = 'complete'; calibrationText.textContent = 'Ready'; logMessage('Calibration: Complete.'); Object.keys(sensorZeroOffsets).forEach(calibKey => { if (tempCalibrationData[calibKey] && tempCalibrationData[calibKey].length > 0) { const sum = tempCalibrationData[calibKey].reduce((s, v) => s + v, 0); sensorZeroOffsets[calibKey] = sum / tempCalibrationData[calibKey].length; } else { sensorZeroOffsets[calibKey] = 0; } if (tempCalibrationData[calibKey]) tempCalibrationData[calibKey] = []; }); sensorData[TARGET_SENSOR_KEY].raw = []; previousFilteredValueAccelX = null; breathCycleState = 'EXPECTING_PEAK'; lastDetectedBreathPeak = { value: null, time: null }; lastDetectedBreathTrough = { value: null, time: null }; lastConfirmedBreathEventTimestamps = []; lastConfirmedHeartbeatTimestamps = []; lastHeartbeatPeakTime = 0; potentialHeartbeatPeak = {value: null, time: null}; lookingForHeartbeatPeak = true; calculateAndDisplayBreathingRate(); calculateAndDisplayHeartRate(); setTimeout(() => calibrationNotice.classList.add('hidden'), 1500); } else { const timeLeft = Math.round((calibrationStartTimestamp + CALIBRATION_DURATION_MS - currentTimeForEvent)/1000); calibrationText.textContent = `Collecting Data... ${timeLeft}s`; return; } } if (calibrationState === 'complete') { if (currentTimeForEvent >= (lastSampledTime[TARGET_SENSOR_KEY] || 0) + SAMPLING_INTERVAL_MS) { if (incomingRawValues.hasOwnProperty(TARGET_SENSOR_KEY)) { const currentSampleTime = currentTimeForEvent; lastSampledTime[TARGET_SENSOR_KEY] = currentSampleTime; const zeroAdjustedValue = incomingRawValues[TARGET_SENSOR_KEY] - (sensorZeroOffsets[TARGET_SENSOR_KEY] || 0); processSensorDataForChart(TARGET_SENSOR_KEY, zeroAdjustedValue, currentSampleTime); } } }
+        function handleDeviceMotion(event) { /* Calibration largely same, ensure chart is cleared on reset */
+            const currentTimeForEvent = Date.now(); if (calibrationState === 'pending') { calibrationStartTimestamp = currentTimeForEvent; calibrationState = 'delay'; calibrationNotice.classList.remove('hidden'); calibrationText.textContent = `Calibrating... (${CALIBRATION_DELAY_MS / 1000}s)`; logMessage(`Calibration: Delay phase.`); return; } const acc = event.accelerationIncludingGravity; const incomingRawValues = { accelX: acc ? acc.x || 0 : 0, accelY: acc ? acc.y || 0 : 0, accelZ: acc ? acc.z || 0 : 0, gyroAlpha: event.rotationRate ? event.rotationRate.alpha || 0 : 0, gyroBeta:  event.rotationRate ? event.rotationRate.beta || 0 : 0, gyroGamma: event.rotationRate ? event.rotationRate.gamma || 0 : 0, }; if (calibrationState === 'delay') { if (currentTimeForEvent >= calibrationStartTimestamp + CALIBRATION_DELAY_MS) { calibrationState = 'collecting'; calibrationStartTimestamp = currentTimeForEvent; calibrationText.textContent = `Collecting Data...(${CALIBRATION_DURATION_MS / 1000}s)`; logMessage(`Calibration: Collecting data.`); } else { const timeLeft = Math.round((calibrationStartTimestamp + CALIBRATION_DELAY_MS - currentTimeForEvent)/1000); calibrationText.textContent = `Calibrating... ${timeLeft}s`; return; } } if (calibrationState === 'collecting') { Object.keys(incomingRawValues).forEach(calibKey => { if (tempCalibrationData[calibKey]) tempCalibrationData[calibKey].push(incomingRawValues[calibKey]); }); if (currentTimeForEvent >= calibrationStartTimestamp + CALIBRATION_DURATION_MS) { calibrationState = 'complete'; calibrationText.textContent = 'Ready'; logMessage('Calibration: Complete.'); Object.keys(sensorZeroOffsets).forEach(calibKey => { if (tempCalibrationData[calibKey] && tempCalibrationData[calibKey].length > 0) { const sum = tempCalibrationData[calibKey].reduce((s, v) => s + v, 0); sensorZeroOffsets[calibKey] = sum / tempCalibrationData[calibKey].length; } else { sensorZeroOffsets[calibKey] = 0; } if (tempCalibrationData[calibKey]) tempCalibrationData[calibKey] = []; }); sensorData[TARGET_SENSOR_KEY].raw = []; previousFilteredValueAccelX = null; breathCycleState = 'EXPECTING_PEAK'; /* Reset states */ lastConfirmedBreathEventTimestamps = []; lastConfirmedHeartbeatTimestamps = []; if(accelChart) { accelChart.data.labels = []; accelChart.data.datasets[0].data = []; accelChart.update('none');} calculateAndDisplayBreathingRate(); calculateAndDisplayHeartRate(); setTimeout(() => calibrationNotice.classList.add('hidden'), 1500); } else { const timeLeft = Math.round((calibrationStartTimestamp + CALIBRATION_DURATION_MS - currentTimeForEvent)/1000); calibrationText.textContent = `Collecting Data... ${timeLeft}s`; return; } } if (calibrationState === 'complete') { if (currentTimeForEvent >= (lastSampledTime[TARGET_SENSOR_KEY] || 0) + SAMPLING_INTERVAL_MS) { if (incomingRawValues.hasOwnProperty(TARGET_SENSOR_KEY)) { const currentSampleTime = currentTimeForEvent; lastSampledTime[TARGET_SENSOR_KEY] = currentSampleTime; const zeroAdjustedValue = incomingRawValues[TARGET_SENSOR_KEY] - (sensorZeroOffsets[TARGET_SENSOR_KEY] || 0); processSensorDataForChart(TARGET_SENSOR_KEY, zeroAdjustedValue, currentSampleTime); } } }
         }
+
 
         async function requestAndLockOrientation() {
             try {
-                // Request motion permission first
                 if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
                     const permission = await DeviceMotionEvent.requestPermission();
-                    if (permission !== 'granted') {
-                        logMessage('Motion permission denied.', 'error');
-                        permissionButton.textContent = "Permission Denied";
-                        return false;
-                    }
-                } else if (typeof DeviceMotionEvent === 'undefined') {
-                     logMessage('DeviceMotionEvent API not supported.', 'error');
-                     permissionButton.textContent = "Not Supported";
-                     return false;
-                }
+                    if (permission !== 'granted') { logMessage('Motion permission denied.', 'error'); permissionButton.textContent = "Permission Denied"; return false; }
+                } else if (typeof DeviceMotionEvent === 'undefined') { logMessage('DeviceMotionEvent API not supported.', 'error'); permissionButton.textContent = "Not Supported"; return false; }
                 logMessage('Motion permission granted.', 'success');
 
-                // Then attempt to lock orientation (best effort)
                 if (screen.orientation && typeof screen.orientation.lock === 'function') {
-                    await screen.orientation.lock('portrait-primary');
-                    logMessage('Screen locked to portrait.', 'info');
-                } else {
-                    logMessage('Screen Orientation API not fully supported for locking.', 'warn');
-                }
-                return true; // Permission granted, lock attempted
-            } catch (err) {
-                logMessage(`Error during permission/lock: ${err.message}`, 'error');
-                permissionButton.textContent = "Error";
-                return false;
-            }
+                    await screen.orientation.lock('landscape-primary'); // LOCK TO LANDSCAPE
+                    logMessage('Screen locked to landscape.', 'info');
+                } else { logMessage('Screen Orientation API not fully supported for locking.', 'warn'); }
+                return true;
+            } catch (err) { logMessage(`Error during permission/lock: ${err.message}`, 'error'); permissionButton.textContent = "Error"; return false; }
         }
-
 
         permissionButton.addEventListener('click', async () => {
             const permissionGranted = await requestAndLockOrientation();
@@ -416,46 +374,32 @@
                 permissionButton.classList.add('hidden');
                 breathRateDisplay.classList.remove('hidden');
                 breathRateLabel.classList.remove('hidden');
+                createAccelChart(); // Create chart now that we have permission / layout might be stable
                 window.addEventListener('devicemotion', handleDeviceMotion, true);
-                 // Start calibration notice if it's not already complete
-                if(calibrationState === 'pending') {
-                    calibrationNotice.classList.remove('hidden');
-                }
+                if(calibrationState === 'pending') calibrationNotice.classList.remove('hidden');
             }
         });
 
         window.addEventListener('load', () => {
             logMessage('App loaded. Tap Start.');
-            setCircleInitialSize(); // Set initial size based on viewport
+            setCircleInitialSize();
 
-            // Sliders setup
-            breathAmpThresholdSlider.value = MIN_BREATH_AMPLITUDE_THRESHOLD;
-            breathAmpThresholdValueDisplay.textContent = MIN_BREATH_AMPLITUDE_THRESHOLD.toFixed(2);
-            breathAmpThresholdSlider.addEventListener('input', (event) => {
-                MIN_BREATH_AMPLITUDE_THRESHOLD = parseFloat(event.target.value);
-                breathAmpThresholdValueDisplay.textContent = MIN_BREATH_AMPLITUDE_THRESHOLD.toFixed(2);
-            });
-            breathAmpThresholdSlider.addEventListener('change', () => {
-                 logMessage(`Breath Amp Thresh: ${MIN_BREATH_AMPLITUDE_THRESHOLD.toFixed(3)}`);
-                 lastConfirmedBreathEventTimestamps = []; calculateAndDisplayBreathingRate();
-            });
+            // Sliders setup (same as before)
+            breathAmpThresholdSlider.value = MIN_BREATH_AMPLITUDE_THRESHOLD; breathAmpThresholdValueDisplay.textContent = MIN_BREATH_AMPLITUDE_THRESHOLD.toFixed(2);
+            breathAmpThresholdSlider.addEventListener('input', (event) => { MIN_BREATH_AMPLITUDE_THRESHOLD = parseFloat(event.target.value); breathAmpThresholdValueDisplay.textContent = MIN_BREATH_AMPLITUDE_THRESHOLD.toFixed(2); });
+            breathAmpThresholdSlider.addEventListener('change', () => { logMessage(`Breath Amp Thresh: ${MIN_BREATH_AMPLITUDE_THRESHOLD.toFixed(3)}`); lastConfirmedBreathEventTimestamps = []; calculateAndDisplayBreathingRate(); });
+            heartAmpThresholdSlider.value = MIN_HEARTBEAT_AMPLITUDE_THRESHOLD; heartAmpThresholdValueDisplay.textContent = MIN_HEARTBEAT_AMPLITUDE_THRESHOLD.toFixed(3);
+            heartAmpThresholdSlider.addEventListener('input', (event) => { MIN_HEARTBEAT_AMPLITUDE_THRESHOLD = parseFloat(event.target.value); heartAmpThresholdValueDisplay.textContent = MIN_HEARTBEAT_AMPLITUDE_THRESHOLD.toFixed(3); });
+            heartAmpThresholdSlider.addEventListener('change', () => { logMessage(`Pulse Amp Thresh: ${MIN_HEARTBEAT_AMPLITUDE_THRESHOLD.toFixed(3)}`); lastConfirmedHeartbeatTimestamps = []; calculateAndDisplayHeartRate(); });
 
-            heartAmpThresholdSlider.value = MIN_HEARTBEAT_AMPLITUDE_THRESHOLD;
-            heartAmpThresholdValueDisplay.textContent = MIN_HEARTBEAT_AMPLITUDE_THRESHOLD.toFixed(3);
-            heartAmpThresholdSlider.addEventListener('input', (event) => {
-                MIN_HEARTBEAT_AMPLITUDE_THRESHOLD = parseFloat(event.target.value);
-                heartAmpThresholdValueDisplay.textContent = MIN_HEARTBEAT_AMPLITUDE_THRESHOLD.toFixed(3);
-            });
-             heartAmpThresholdSlider.addEventListener('change', () => {
-                 logMessage(`Pulse Amp Thresh: ${MIN_HEARTBEAT_AMPLITUDE_THRESHOLD.toFixed(3)}`);
-                 lastConfirmedHeartbeatTimestamps = []; calculateAndDisplayHeartRate();
-            });
-
-            calculateAndDisplayBreathingRate();
-            calculateAndDisplayHeartRate();
+            calculateAndDisplayBreathingRate(); calculateAndDisplayHeartRate();
         });
-
-        window.addEventListener('resize', setCircleInitialSize); // Adjust circle if screen resizes (e.g. dev tools)
+        window.addEventListener('resize', () => {
+            setCircleInitialSize();
+            if (accelChart) { // If chart exists, tell it to resize
+                accelChart.resize();
+            }
+        });
 
     </script>
 </body>
