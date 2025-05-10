@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Fixed Accelerometer X Visualizer</title>
+    <title>Fixed Accelerometer X Visualizer (with Beep)</title>
 
     <!-- Apple Web App Meta Tags -->
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -33,13 +33,12 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             margin-bottom: 15px;
         }
-        /* No controls div needed as it's fixed */
         .chart-container {
             background-color: #fff;
             padding: 15px;
             border-radius: 8px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            margin-top: 15px; /* Added margin if controls are gone */
+            margin-top: 15px;
         }
         .chart-container h3 {
             margin-top: 0;
@@ -54,9 +53,7 @@
             border-radius: 8px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
-        .logs h3 {
-            margin-top: 0;
-        }
+        .logs h3 { margin-top: 0; }
         .log-area {
             max-height: 150px;
             overflow-y: auto;
@@ -73,8 +70,8 @@
 </head>
 <body>
     <div class="container">
-        <h1>Fixed Accelerometer X Visualizer</h1>
-        <p style="text-align: center;">Displaying Accelerometer X with 0.1s sampling and SG filter.</p>
+        <h1>Fixed Accelerometer X Visualizer (with Beep)</h1>
+        <p style="text-align: center;">Displaying Accelerometer X with 0.1s sampling, SG filter, and peak beep.</p>
 
         <div id="permissionSection" class="permission-section">
             <p>This app requires access to your device's motion sensors for Accelerometer X.</p>
@@ -85,7 +82,6 @@
             <p id="calibrationText">Initializing calibration...</p>
         </div>
 
-        <!-- Main content is now just the chart -->
         <div id="mainContent" class="hidden">
             <div class="chart-container">
                 <h3 id="chartTitle">Accelerometer X (SG Filtered, 0.1s Sampling)</h3>
@@ -104,39 +100,43 @@
         const SG_WINDOW_SIZE = 5;
         const SG_COEFFICIENTS = [-3, 12, 17, 12, -3];
         const SG_DENOMINATOR = 35;
-        const MAX_RAW_DATA_STORAGE = MAX_CHART_POINTS; // Stores (zero-adjusted) values for filtering
+        const MAX_RAW_DATA_STORAGE = MAX_CHART_POINTS;
 
         const CALIBRATION_DELAY_MS = 10000;
         const CALIBRATION_DURATION_MS = 30000;
 
-        // --- Hardcoded Settings ---
         const TARGET_SENSOR_KEY = 'accelX';
-        const SAMPLING_INTERVAL_MS = 100; // 0.1 seconds
+        const SAMPLING_INTERVAL_MS = 100;
         const SG_FILTER_ALWAYS_ACTIVE = true;
-        // --- End Hardcoded Settings ---
+
+        // --- Audio Beep Settings ---
+        const BEEP_FREQUENCY = 880; // Hz (A5 note)
+        const BEEP_DURATION_MS = 100; // Duration of the beep
+        const BEEP_THROTTLE_MS = 500; // Minimum time between beeps
+        let audioCtx;
+        let lastBeepTime = 0;
+        // --- End Audio Beep Settings ---
+
+        // --- Peak Detection State ---
+        let previousFilteredValueAccelX = null;
+        let trendAccelX = 'flat'; // 'rising', 'falling', 'flat'
+        // --- End Peak Detection State ---
 
         const logArea = document.getElementById('logArea');
         const permissionSection = document.getElementById('permissionSection');
         const calibrationNotice = document.getElementById('calibrationNotice');
         const calibrationText = document.getElementById('calibrationText');
-        const mainContent = document.getElementById('mainContent'); // This will just show the chart
+        const mainContent = document.getElementById('mainContent');
         const chartTitle = document.getElementById('chartTitle');
-
 
         let sensorChart;
         let chartLabels = [];
-
-        // Simplified sensorData, only need target sensor
-        let sensorData = {
-            [TARGET_SENSOR_KEY]: { raw: [], filteredForChart: [], lpfActive: SG_FILTER_ALWAYS_ACTIVE }
-        };
-
+        let sensorData = { [TARGET_SENSOR_KEY]: { raw: [], filteredForChart: [], lpfActive: SG_FILTER_ALWAYS_ACTIVE } };
         let calibrationState = 'pending';
         let calibrationStartTimestamp;
-        // Only need temp calibration data for the target sensor + others if they exist in event
         let tempCalibrationData = { accelX: [], accelY: [], accelZ: [], gyroAlpha: [], gyroBeta: [], gyroGamma: [] };
         let sensorZeroOffsets = { accelX: 0, accelY: 0, accelZ: 0, gyroAlpha: 0, gyroBeta: 0, gyroGamma: 0 };
-        let lastSampledTime = { [TARGET_SENSOR_KEY]: 0 }; // Only for target sensor
+        let lastSampledTime = { [TARGET_SENSOR_KEY]: 0 };
 
 
         function logMessage(message, type = 'info') {
@@ -149,14 +149,63 @@
             logArea.scrollTop = logArea.scrollHeight;
         }
 
-        function createChart(canvasId) {
-            const ctx = document.getElementById(canvasId).getContext('2d');
+        function initializeAudio() {
+            if (!audioCtx) {
+                try {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    logMessage('AudioContext initialized.');
+                } catch (e) {
+                    logMessage('Web Audio API is not supported in this browser.', 'error');
+                    console.error(e);
+                }
+            }
+        }
+
+        function playBeep() {
+            if (!audioCtx || audioCtx.state === 'suspended') {
+                logMessage('AudioContext not ready or suspended. Cannot play beep.', 'warn');
+                // Attempt to resume, might not work if not in user gesture
+                if (audioCtx) audioCtx.resume().catch(e => logMessage('Audio resume failed: ' + e, 'warn'));
+                return;
+            }
+
+            const currentTime = Date.now();
+            if (currentTime - lastBeepTime < BEEP_THROTTLE_MS) {
+                // logMessage('Beep throttled.', 'info'); // Optional: for debugging
+                return;
+            }
+            lastBeepTime = currentTime;
+
+            try {
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+
+                oscillator.type = 'sine'; // 'sine', 'square', 'sawtooth', 'triangle'
+                oscillator.frequency.setValueAtTime(BEEP_FREQUENCY, audioCtx.currentTime);
+
+                gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime); // Start beep volume
+                gainNode.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + BEEP_DURATION_MS / 1000);
+
+                oscillator.start(audioCtx.currentTime);
+                oscillator.stop(audioCtx.currentTime + BEEP_DURATION_MS / 1000);
+                // logMessage('Beep played.', 'info'); // Optional: for debugging
+            } catch (e) {
+                logMessage('Error playing beep: ' + e, 'error');
+            }
+        }
+
+
+        function createChart(canvasId) { /* ... same as before ... */
+             const ctx = document.getElementById(canvasId).getContext('2d');
             return new Chart(ctx, {
                 type: 'line',
                 data: {
                     labels: [],
                     datasets: [{
-                        label: 'Accelerometer X (SG, 0.1s)', // Fixed label
+                        label: 'Accelerometer X (SG, 0.1s)',
                         data: [],
                         borderColor: 'rgb(75, 192, 192)',
                         tension: 0.1,
@@ -167,12 +216,12 @@
                     responsive: true, maintainAspectRatio: true,
                     scales: { x: { display: true }, y: { display: true } },
                     animation: { duration: 0 },
-                    plugins: { legend: { display: true, position: 'top' } } // Show legend
+                    plugins: { legend: { display: true, position: 'top' } }
                 }
             });
         }
 
-        function savitzkyGolaySmooth(data) {
+        function savitzkyGolaySmooth(data) { /* ... same as before ... */
             const windowSize = SG_WINDOW_SIZE;
             const coeffs = SG_COEFFICIENTS;
             const denominator = SG_DENOMINATOR;
@@ -194,19 +243,41 @@
         }
 
         function processSensorDataForChart(key, zeroAdjustedValue) {
-            // This function is now only called for TARGET_SENSOR_KEY
             const dataObj = sensorData[key];
             dataObj.raw.push(zeroAdjustedValue);
             if (dataObj.raw.length > MAX_RAW_DATA_STORAGE) {
                 dataObj.raw.shift();
             }
             const currentInputSegmentForChart = dataObj.raw.slice(-MAX_CHART_POINTS);
-
-            // SG Filter is always active as per requirement
             dataObj.filteredForChart = savitzkyGolaySmooth(currentInputSegmentForChart);
+
+            // --- Peak Detection Logic for TARGET_SENSOR_KEY ---
+            if (key === TARGET_SENSOR_KEY && dataObj.filteredForChart.length > 0) {
+                const currentFiltered = dataObj.filteredForChart[dataObj.filteredForChart.length - 1];
+
+                if (previousFilteredValueAccelX !== null) {
+                    if (previousFilteredValueAccelX > currentFiltered && trendAccelX === 'rising') {
+                        // Peak detected at previousFilteredValueAccelX
+                        playBeep();
+                        logMessage(`Peak detected for ${TARGET_SENSOR_KEY} at ${previousFilteredValueAccelX.toFixed(3)}`, 'info');
+                    }
+                }
+
+                if (previousFilteredValueAccelX !== null) {
+                    if (currentFiltered > previousFilteredValueAccelX) {
+                        trendAccelX = 'rising';
+                    } else if (currentFiltered < previousFilteredValueAccelX) {
+                        trendAccelX = 'falling';
+                    } else {
+                        trendAccelX = 'flat'; // Or maintain previous trend if flat
+                    }
+                }
+                previousFilteredValueAccelX = currentFiltered;
+            }
+            // --- End Peak Detection Logic ---
         }
 
-        function updateChart() {
+        function updateChart() { /* ... same as before ... */
             if (!sensorChart || calibrationState !== 'complete') {
                 return;
             }
@@ -214,11 +285,10 @@
             const currentLabels = chartLabels.slice(-currentFilteredData.length);
             sensorChart.data.labels = currentLabels;
             sensorChart.data.datasets[0].data = currentFilteredData;
-            // Dataset label is fixed in createChart
             sensorChart.update();
         }
 
-        function handleDeviceMotion(event) {
+        function handleDeviceMotion(event) { /* ... same as before, with no changes to this function itself ... */
             const currentTime = Date.now();
 
             if (calibrationState === 'pending') {
@@ -230,10 +300,8 @@
                 return;
             }
 
-            // We still need to collect all sensor data for accurate zeroing,
-            // even if we only plot one.
             const acc = event.accelerationIncludingGravity;
-            const rot = event.rotationRate; // Collect all for accurate zeroing if device isn't perfectly flat
+            const rot = event.rotationRate;
             const incomingRawValues = {
                 accelX: acc ? acc.x || 0 : 0, accelY: acc ? acc.y || 0 : 0, accelZ: acc ? acc.z || 0 : 0,
                 gyroAlpha: rot ? rot.alpha || 0 : 0, gyroBeta: rot ? rot.beta || 0 : 0, gyroGamma: rot ? rot.gamma || 0 : 0,
@@ -255,7 +323,7 @@
 
             if (calibrationState === 'collecting') {
                 Object.keys(incomingRawValues).forEach(key => {
-                    if (tempCalibrationData[key]) { // Ensure key exists
+                    if (tempCalibrationData[key]) {
                          tempCalibrationData[key].push(incomingRawValues[key]);
                     }
                 });
@@ -263,27 +331,29 @@
                     calibrationState = 'complete';
                     calibrationText.textContent = 'Calibration complete! Plotting Accelerometer X.';
                     logMessage('Calibration data collection complete. Calculating zero offsets...');
-                    Object.keys(sensorZeroOffsets).forEach(key => { // Calculate for all collected
+                    Object.keys(sensorZeroOffsets).forEach(key => {
                         if (tempCalibrationData[key] && tempCalibrationData[key].length > 0) {
                             const sum = tempCalibrationData[key].reduce((s, v) => s + v, 0);
                             sensorZeroOffsets[key] = sum / tempCalibrationData[key].length;
                             logMessage(`Zero offset for ${key}: ${sensorZeroOffsets[key].toFixed(4)}`);
                         } else {
-                            sensorZeroOffsets[key] = 0; // Default if no data
+                            sensorZeroOffsets[key] = 0;
                             logMessage(`No calibration data for ${key}, offset set to 0.`, 'warn');
                         }
                         if (tempCalibrationData[key]) tempCalibrationData[key] = [];
                     });
 
                     logMessage(`Calibration complete. Plotting ${TARGET_SENSOR_KEY}.`);
-                    // Clear only TARGET_SENSOR_KEY data for chart
                     sensorData[TARGET_SENSOR_KEY].raw = [];
                     sensorData[TARGET_SENSOR_KEY].filteredForChart = [];
                     chartLabels = [];
-                    lastSampledTime[TARGET_SENSOR_KEY] = 0; // Reset sample time for the target sensor
+                    lastSampledTime[TARGET_SENSOR_KEY] = 0;
+                    previousFilteredValueAccelX = null; // Reset peak detection state
+                    trendAccelX = 'flat';
+
 
                     setTimeout(() => calibrationNotice.classList.add('hidden'), 3000);
-                    mainContent.classList.remove('hidden'); // Show the chart area
+                    mainContent.classList.remove('hidden');
                 } else {
                     const timeLeft = Math.round((calibrationStartTimestamp + CALIBRATION_DURATION_MS - currentTime)/1000);
                     calibrationText.textContent = `Calibration: Collecting data... ${timeLeft}s remaining. Keep still.`;
@@ -292,12 +362,11 @@
             }
 
             if (calibrationState === 'complete') {
-                // Only process TARGET_SENSOR_KEY
                 if (currentTime >= (lastSampledTime[TARGET_SENSOR_KEY] || 0) + SAMPLING_INTERVAL_MS) {
                     if (incomingRawValues.hasOwnProperty(TARGET_SENSOR_KEY)) {
                         lastSampledTime[TARGET_SENSOR_KEY] = currentTime;
                         const zeroAdjustedValue = incomingRawValues[TARGET_SENSOR_KEY] - (sensorZeroOffsets[TARGET_SENSOR_KEY] || 0);
-                        processSensorDataForChart(TARGET_SENSOR_KEY, zeroAdjustedValue);
+                        processSensorDataForChart(TARGET_SENSOR_KEY, zeroAdjustedValue); // Peak detection happens here
 
                         const nowLabel = new Date(currentTime).toLocaleTimeString().split(" ")[0];
                         if (chartLabels.length >= MAX_CHART_POINTS) {
@@ -312,6 +381,19 @@
 
         function requestMotionPermission() {
             logMessage('Attempting to request motion sensor permission...');
+            // --- Resume AudioContext on user gesture ---
+            if (audioCtx && audioCtx.state === 'suspended') {
+                audioCtx.resume().then(() => {
+                    logMessage('AudioContext resumed successfully by user gesture.');
+                }).catch(e => logMessage('AudioContext resume failed: ' + e, 'error'));
+            } else if (!audioCtx) {
+                initializeAudio(); // Initialize if not already, then try to resume if needed
+                 if (audioCtx && audioCtx.state === 'suspended') {
+                    audioCtx.resume().catch(e => logMessage('AudioContext resume failed post-init: ' + e, 'error'));
+                 }
+            }
+            // --- End Resume AudioContext ---
+
             if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
                 DeviceMotionEvent.requestPermission()
                     .then(permissionState => {
@@ -340,8 +422,8 @@
 
         window.addEventListener('load', () => {
             logMessage('App loaded. Grant permission to start calibration for Accelerometer X.');
+            initializeAudio(); // Initialize AudioContext on load
             sensorChart = createChart('sensorChart');
-            // chartTitle is set in HTML and createChart
             logMessage(`Targeting ${TARGET_SENSOR_KEY} with ${SAMPLING_INTERVAL_MS / 1000}s interval and SG filter.`);
 
             requestPermissionButton.addEventListener('click', requestMotionPermission);
