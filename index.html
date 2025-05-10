@@ -25,7 +25,7 @@
             max-width: 400px;
         }
         h1 {
-            color: #007aff; /* Apple Blue */
+            color: #007aff;
             margin-bottom: 20px;
         }
         button {
@@ -37,7 +37,7 @@
             border-radius: 6px;
             cursor: pointer;
             transition: background-color 0.2s;
-            margin-bottom: 20px;
+            margin-bottom: 10px; /* Adjusted margin */
         }
         button:hover {
             background-color: #005ecb;
@@ -46,49 +46,32 @@
             background-color: #cccccc;
             cursor: not-allowed;
         }
+        #calibrateButton {
+            background-color: #ff9500; /* Orange for calibration */
+        }
+        #calibrateButton:hover {
+            background-color: #e08500;
+        }
         .data-display {
             margin-bottom: 15px;
             padding: 10px;
             background-color: #e9e9eb;
             border-radius: 4px;
         }
-        .data-display p {
-            margin: 5px 0;
-            font-size: 18px;
-        }
-        .data-display span {
-            font-weight: bold;
-            color: #333;
-        }
-        #breathRateDisplay {
-            font-size: 24px;
-            color: #28a745; /* Green for positive feedback */
-        }
-        #movementDisplay {
-            color: #17a2b8; /* Info Blue */
-            font-weight: bold; /* Make instructions more prominent */
-        }
+        .data-display p { margin: 5px 0; font-size: 18px; }
+        .data-display span { font-weight: bold; color: #333; }
+        #breathRateDisplay { font-size: 24px; color: #28a745; }
+        #movementDisplay { color: #17a2b8; font-weight: bold; }
         #logArea {
-            width: 100%;
-            height: 150px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            padding: 8px;
-            font-family: monospace;
-            font-size: 12px;
-            overflow-y: scroll;
-            box-sizing: border-box;
+            width: 100%; height: 150px; border: 1px solid #ccc;
+            border-radius: 4px; padding: 8px; font-family: monospace;
+            font-size: 12px; overflow-y: scroll; box-sizing: border-box;
             background-color: #f9f9f9;
         }
         .instructions {
-            font-size: 14px;
-            color: #555;
-            margin-bottom: 20px;
-            text-align: left;
-            padding: 10px;
-            background-color: #fff3cd;
-            border: 1px solid #ffeeba;
-            border-radius: 4px;
+            font-size: 14px; color: #555; margin-bottom: 20px;
+            text-align: left; padding: 10px; background-color: #fff3cd;
+            border: 1px solid #ffeeba; border-radius: 4px;
         }
     </style>
 </head>
@@ -99,15 +82,15 @@
         <div class="instructions">
             <strong>Instructions:</strong>
             <ol>
-                <li>Ensure this page is served over HTTPS.</li>
-                <li>Tap "Start Monitoring".</li>
-                <li>Grant sensor permissions.</li>
-                <li>Follow on-screen calibration prompts (using phone tilt).</li>
+                <li>Ensure HTTPS.</li>
+                <li>Tap "Start Monitoring" & grant permissions.</li>
+                <li>Tap "Calibrate" and follow prompts (tone will play during hold).</li>
                 <li>Lie down, place iPhone on abdomen (top towards head), breathe normally.</li>
             </ol>
         </div>
 
         <button id="startButton">Start Monitoring</button>
+        <button id="calibrateButton" style="display: none;">Calibrate</button>
 
         <div class="data-display">
             <p>Status: <span id="movementDisplay">--</span></p>
@@ -127,27 +110,30 @@
 
     <script>
         const startButton = document.getElementById('startButton');
+        const calibrateButton = document.getElementById('calibrateButton');
         const movementDisplay = document.getElementById('movementDisplay');
         const breathRateDisplay = document.getElementById('breathRateDisplay');
         const betaGyroDisplay = document.getElementById('betaGyroDisplay');
         const calibratedBetaDisplay = document.getElementById('calibratedBetaDisplay');
-        const zAccelDisplay = document.getElementById('zAccelDisplay'); // Keep for FYI
+        const zAccelDisplay = document.getElementById('zAccelDisplay');
         const logArea = document.getElementById('logArea');
 
-        let isMonitoring = false;
-        let lastBeta = null; // For gyroscope beta
-        let breathState = 'IDLE'; // IDLE, RISING, FALLING
+        let systemActive = false; // Overall system active (after Start Monitoring and permissions)
+        let isMonitoringBreaths = false; // Actual breath detection active (after calibration)
+        let lastBeta = null;
+        let breathState = 'IDLE';
         let breathTimestamps = [];
         const MAX_TIMESTAMPS = 10;
-        // **** CRITICAL: TUNE THIS VALUE ****
-        const BETA_TILT_THRESHOLD = 1.0; // Degrees. Start with 1-3 degrees and adjust.
+        const BETA_TILT_THRESHOLD = 1.0; // Degrees. TUNE THIS!
         const MIN_BREATH_INTERVAL_MS = 1000;
         let lastBreathEventTime = 0;
 
         let audioContext = null;
+        let calibrationToneOscillator = null;
+        let calibrationToneGain = null;
 
         const CALIBRATION_DURATION_MS = 3000;
-        let calibrationState = 'NOT_CALIBRATED'; // NOT_CALIBRATED, CALIBRATING_PROMPT, CALIBRATING_HOLD, CALIBRATED
+        let calibrationState = 'NOT_CALIBRATED'; // NOT_CALIBRATED, AWAITING_CALIBRATION, CALIBRATING_PROMPT, CALIBRATING_HOLD, CALIBRATED
         let calibrationTimer = null;
         let calibrationBetaValues = [];
         let calibratedInhalePeakBeta = null;
@@ -163,13 +149,9 @@
             try {
                 if (screen.orientation && typeof screen.orientation.lock === 'function') {
                     await screen.orientation.lock('portrait-primary');
-                    logMessage('Screen orientation locked to portrait.');
-                } else {
-                    logMessage('Screen orientation lock API not fully supported.', 'WARN');
-                }
-            } catch (error) {
-                logMessage(`Could not lock screen orientation: ${error.message}`, 'WARN');
-            }
+                    logMessage('Screen orientation locked.');
+                } else { logMessage('Screen lock API not fully supported.', 'WARN'); }
+            } catch (error) { logMessage(`Screen lock error: ${error.message}`, 'WARN'); }
         }
 
         function initializeAudioContext() {
@@ -177,15 +159,15 @@
                 try {
                     audioContext = new (window.AudioContext || window.webkitAudioContext)();
                     logMessage('AudioContext initialized.');
-                } catch (e) {
-                    logMessage('Web Audio API not supported.', 'ERROR'); audioContext = null;
-                }
+                } catch (e) { logMessage('Web Audio API not supported.', 'ERROR'); audioContext = null; }
             } else if (audioContext.state === 'suspended') {
                 audioContext.resume().then(() => logMessage('AudioContext resumed.'))
                                      .catch(e => logMessage('Failed to resume AudioContext.', 'ERROR'));
             }
         }
 
+        function playBeep(duration = 0.1, frequency = 880, volume = 0.3) { /* ... (same as before) ... */ }
+        // Beep function (same as before)
         function playBeep(duration = 0.1, frequency = 880, volume = 0.3) {
             if (!audioContext || audioContext.state !== 'running') return;
             try {
@@ -203,41 +185,93 @@
             } catch (e) { logMessage(`Error playing beep: ${e.message}`, 'ERROR'); }
         }
 
-        function startCalibrationPhase() {
+
+        function startCalibrationTone() {
+            if (!audioContext || audioContext.state !== 'running') {
+                logMessage('AudioContext not ready for calibration tone.', 'WARN');
+                return;
+            }
+            if (calibrationToneOscillator) {
+                stopCalibrationTone(); // Stop if already playing
+            }
+            try {
+                calibrationToneOscillator = audioContext.createOscillator();
+                calibrationToneGain = audioContext.createGain();
+
+                calibrationToneOscillator.type = 'sine';
+                calibrationToneOscillator.frequency.setValueAtTime(440, audioContext.currentTime); // A4 note
+                calibrationToneGain.gain.setValueAtTime(0.2, audioContext.currentTime); // Lower volume
+
+                calibrationToneOscillator.connect(calibrationToneGain);
+                calibrationToneGain.connect(audioContext.destination);
+                calibrationToneOscillator.start(audioContext.currentTime);
+                logMessage('Calibration tone started.');
+            } catch (e) {
+                logMessage(`Error starting calibration tone: ${e.message}`, 'ERROR');
+                calibrationToneOscillator = null;
+                calibrationToneGain = null;
+            }
+        }
+
+        function stopCalibrationTone() {
+            if (calibrationToneOscillator) {
+                try {
+                    calibrationToneOscillator.stop(audioContext.currentTime);
+                    calibrationToneOscillator.disconnect();
+                    calibrationToneGain.disconnect();
+                    logMessage('Calibration tone stopped.');
+                } catch(e) {
+                    logMessage(`Error stopping calibration tone: ${e.message}`, 'WARN');
+                }
+                calibrationToneOscillator = null;
+                calibrationToneGain = null;
+            }
+        }
+
+        function initiateCalibrationProcess() {
+            if (!systemActive) {
+                logMessage('System not active. Click "Start Monitoring" first.', 'WARN');
+                return;
+            }
+            if (calibrationState === 'CALIBRATING_HOLD' || calibrationState === 'CALIBRATING_PROMPT') {
+                logMessage('Calibration already in progress.', 'INFO');
+                return;
+            }
+
+            isMonitoringBreaths = false; // Pause breath detection during calibration
+            startButton.disabled = true;
+            calibrateButton.disabled = true;
             calibrationState = 'CALIBRATING_PROMPT';
             movementDisplay.textContent = 'Inhale fully, then HOLD your breath...';
             logMessage('Calibration: Prompting user to inhale and hold.');
             
             setTimeout(() => {
-                if (calibrationState !== 'CALIBRATING_PROMPT') return;
+                if (calibrationState !== 'CALIBRATING_PROMPT') return; // Process might have been stopped
+                
                 calibrationState = 'CALIBRATING_HOLD';
                 calibrationBetaValues = [];
-                movementDisplay.textContent = `HOLDING breath... ${CALIBRATION_DURATION_MS/1000}s`;
+                movementDisplay.textContent = `HOLDING breath... ${CALIBRATION_DURATION_MS/1000}s (tone playing)`;
                 logMessage(`Calibration: Holding for ${CALIBRATION_DURATION_MS/1000} seconds.`);
+                startCalibrationTone();
 
                 let countdown = CALIBRATION_DURATION_MS / 1000;
                 const countdownInterval = setInterval(() => {
                     countdown--;
                     if (countdown > 0 && calibrationState === 'CALIBRATING_HOLD') {
-                        movementDisplay.textContent = `HOLDING breath... ${countdown}s`;
+                        movementDisplay.textContent = `HOLDING breath... ${countdown}s (tone playing)`;
                     }
                 }, 1000);
 
-                // Ensure orientation listener is active for calibration
-                if (!isMonitoring && !window.eventListenersAttached) { // Simplified check
-                    window.addEventListener('deviceorientation', handleOrientationEvent);
-                    window.addEventListener('devicemotion', handleMotionEvent); // For Z-accel FYI
-                    window.eventListenersAttached = true;
-                }
-
                 calibrationTimer = setTimeout(() => {
                     clearInterval(countdownInterval);
+                    stopCalibrationTone();
                     if (calibrationState === 'CALIBRATING_HOLD') finishCalibration();
                 }, CALIBRATION_DURATION_MS);
-            }, 2000);
+            }, 2000); // 2 seconds to inhale before hold starts
         }
 
         function finishCalibration() {
+            stopCalibrationTone(); // Ensure tone is stopped
             if (calibrationBetaValues.length > 0) {
                 calibratedInhalePeakBeta = calibrationBetaValues.reduce((sum, val) => sum + val, 0) / calibrationBetaValues.length;
                 calibratedBetaDisplay.textContent = calibratedInhalePeakBeta.toFixed(2) + '°';
@@ -247,107 +281,118 @@
                 calibratedBetaDisplay.textContent = 'N/A';
             }
             calibrationState = 'CALIBRATED';
-            movementDisplay.textContent = 'Calibration complete. Breathe normally.';
-            logMessage('Normal monitoring starting.');
-            
-            // Proceed to normal monitoring
-            startMonitoring();
-        }
-
-        function requestMotionAccess() {
-            logMessage('Attempting to start. Requesting permissions if needed.');
-            if (window.DeviceMotionEvent && typeof DeviceMotionEvent.requestPermission === 'function') {
-                DeviceMotionEvent.requestPermission() // This usually covers deviceorientation too
-                    .then(permissionState => {
-                        if (permissionState === 'granted') {
-                            logMessage('Motion & Orientation sensor permission granted.');
-                            startCalibrationPhase();
-                        } else {
-                            logMessage('Sensor permission denied.', 'ERROR');
-                            alert('Permission denied. Enable motion/orientation sensor access in settings.');
-                            resetAppState();
-                        }
-                    })
-                    .catch(error => {
-                        logMessage(`Error requesting permission: ${error}`, 'ERROR');
-                        alert('Error requesting permissions. See log.');
-                        resetAppState();
-                    });
-            } else if (window.DeviceOrientationEvent || window.DeviceMotionEvent) {
-                logMessage('Sensors available (non-iOS 13+ or permission already granted).');
-                startCalibrationPhase();
-            } else {
-                logMessage('Device Orientation/Motion API not supported.', 'ERROR');
-                alert('Required sensor APIs not supported.');
-                resetAppState();
-            }
-        }
-
-        function startMonitoring() {
-            if (calibrationState !== 'CALIBRATED') {
-                logMessage('Calibration not complete. Please wait or restart.', 'WARN');
-                return;
-            }
-            logMessage('Starting regular motion monitoring (using Gyro Beta)...');
-            if (!window.eventListenersAttached) {
-                window.addEventListener('deviceorientation', handleOrientationEvent);
-                window.addEventListener('devicemotion', handleMotionEvent); // For Z-accel FYI
-                window.eventListenersAttached = true;
-            }
-            isMonitoring = true;
-            startButton.textContent = 'Stop Monitoring';
-            startButton.disabled = false;
+            movementDisplay.textContent = 'Calibrated. Breathe normally to monitor.';
+            logMessage('Normal breath monitoring can now start.');
+            isMonitoringBreaths = true; // Enable breath detection
+            startButton.disabled = false; // Re-enable start/stop
+            calibrateButton.disabled = false; // Re-enable calibrate
+            calibrateButton.textContent = 'Re-Calibrate';
             lastBeta = null; // Reset for fresh breath detection
             breathState = 'IDLE';
         }
 
-        function stopMonitoring() {
-            logMessage('Stopping motion monitoring.');
+        async function requestAndStartSystem() {
+            logMessage('Requesting permissions...');
+            let permissionGranted = false;
+            if (window.DeviceMotionEvent && typeof DeviceMotionEvent.requestPermission === 'function') {
+                try {
+                    const permissionState = await DeviceMotionEvent.requestPermission();
+                    if (permissionState === 'granted') {
+                        logMessage('Motion & Orientation sensor permission granted.');
+                        permissionGranted = true;
+                    } else {
+                        logMessage('Sensor permission denied.', 'ERROR');
+                        alert('Permission denied. Enable sensor access in settings.');
+                    }
+                } catch (error) {
+                    logMessage(`Error requesting permission: ${error}`, 'ERROR');
+                    alert('Error requesting permissions. See log.');
+                }
+            } else if (window.DeviceOrientationEvent || window.DeviceMotionEvent) {
+                logMessage('Sensors available (non-iOS 13+ or permission already granted).');
+                permissionGranted = true;
+            } else {
+                logMessage('Device Orientation/Motion API not supported.', 'ERROR');
+                alert('Required sensor APIs not supported.');
+            }
+
+            if (permissionGranted) {
+                systemActive = true;
+                calibrationState = 'AWAITING_CALIBRATION';
+                initializeAudioContext();
+                await lockScreenOrientation();
+                
+                if (!window.eventListenersAttached) {
+                    window.addEventListener('deviceorientation', handleOrientationEvent);
+                    window.addEventListener('devicemotion', handleMotionEvent); // For Z-accel FYI
+                    window.eventListenersAttached = true;
+                    logMessage('Sensor event listeners attached.');
+                }
+                startButton.textContent = 'Stop Monitoring';
+                movementDisplay.textContent = 'System active. Tap "Calibrate".';
+                calibrateButton.style.display = 'inline-block';
+                calibrateButton.disabled = false;
+            }
+            startButton.disabled = false; // Always re-enable start button after attempt
+        }
+
+        function stopSystem() {
+            logMessage('Stopping system and monitoring.');
+            stopCalibrationTone(); // Ensure tone is off
+            if (calibrationTimer) clearTimeout(calibrationTimer);
+            
             if (window.eventListenersAttached) {
                 window.removeEventListener('deviceorientation', handleOrientationEvent);
                 window.removeEventListener('devicemotion', handleMotionEvent);
                 window.eventListenersAttached = false;
+                logMessage('Sensor event listeners removed.');
             }
-            if (calibrationTimer) clearTimeout(calibrationTimer);
             resetAppState();
         }
 
         function resetAppState() {
-            isMonitoring = false;
+            systemActive = false;
+            isMonitoringBreaths = false;
             startButton.textContent = 'Start Monitoring';
             startButton.disabled = false;
+            calibrateButton.style.display = 'none';
+            calibrateButton.disabled = true;
+            calibrateButton.textContent = 'Calibrate';
+
             lastBeta = null;
             breathState = 'IDLE';
             breathTimestamps = [];
             calibrationState = 'NOT_CALIBRATED';
             calibrationBetaValues = [];
             calibratedInhalePeakBeta = null;
+            
             movementDisplay.textContent = '--';
             breathRateDisplay.textContent = '--';
             betaGyroDisplay.textContent = '--';
             calibratedBetaDisplay.textContent = '--';
             zAccelDisplay.textContent = '--';
-            if(window.eventListenersAttached) { // ensure listeners are removed if reset during calibration
+            
+            if(window.eventListenersAttached) {
                 window.removeEventListener('deviceorientation', handleOrientationEvent);
                 window.removeEventListener('devicemotion', handleMotionEvent);
                 window.eventListenersAttached = false;
             }
         }
 
-        // For Z-Accel FYI display
+        function handleMotionEvent(event) { /* ... (same as before for Z-accel FYI) ... */ }
+         // For Z-Accel FYI display
         function handleMotionEvent(event) {
-            if (event.accelerationIncludingGravity && event.accelerationIncludingGravity.z !== null) {
+            if (systemActive && event.accelerationIncludingGravity && event.accelerationIncludingGravity.z !== null) {
                 zAccelDisplay.textContent = event.accelerationIncludingGravity.z.toFixed(3);
-            } else {
+            } else if (!systemActive) {
                 zAccelDisplay.textContent = 'N/A';
             }
         }
 
-        // Primary breath detection using Gyro Beta
+
         function handleOrientationEvent(event) {
-            if (event.beta === null) {
-                // logMessage('Gyro Beta data not available.', 'WARN'); // Can be noisy
-                betaGyroDisplay.textContent = 'N/A';
+            if (!systemActive || event.beta === null) {
+                if (!systemActive) betaGyroDisplay.textContent = 'N/A';
                 return;
             }
             const currentBeta = event.beta;
@@ -358,8 +403,8 @@
                 return; 
             }
 
-            if (!isMonitoring || calibrationState !== 'CALIBRATED') {
-                return;
+            if (!isMonitoringBreaths || calibrationState !== 'CALIBRATED') {
+                return; // Only detect breaths if calibrated and monitoring
             }
             
             if (lastBeta === null) {
@@ -370,17 +415,16 @@
             const deltaBeta = currentBeta - lastBeta;
             const currentTime = Date.now();
 
-            // Assuming positive deltaBeta for inhale (front of phone tilts up)
             if (breathState === 'IDLE' || breathState === 'FALLING') {
                 if (deltaBeta > BETA_TILT_THRESHOLD) {
-                    breathState = 'RISING'; // Phone tilting "up"
+                    breathState = 'RISING';
                     movementDisplay.textContent = 'Inhaling (Tilt Up)';
                     logMessage(`Movement: Rising (Inhale, Beta change: ${deltaBeta.toFixed(2)})`);
                     playBeep();
                 }
             } else if (breathState === 'RISING') {
                 if (deltaBeta < -BETA_TILT_THRESHOLD) {
-                    breathState = 'FALLING'; // Phone tilting "down"
+                    breathState = 'FALLING';
                     movementDisplay.textContent = 'Exhaling (Tilt Down)';
                     logMessage(`Movement: Falling (Exhale, Beta change: ${deltaBeta.toFixed(2)})`);
 
@@ -395,6 +439,7 @@
             lastBeta = currentBeta;
         }
         
+        function calculateBreathRate() { /* ... (same as before) ... */ }
         function calculateBreathRate() {
             if (breathTimestamps.length < 2) {
                 breathRateDisplay.textContent = '--'; return;
@@ -412,23 +457,24 @@
 
         startButton.addEventListener('click', async () => {
             startButton.disabled = true; 
-            if (!isMonitoring && calibrationState === 'NOT_CALIBRATED') {
+            if (!systemActive) {
                 if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
                      logMessage('CRITICAL: Page not served over HTTPS.', 'ERROR');
                      alert('For sensor access on iOS, this page MUST be served over HTTPS.');
                 }
-                initializeAudioContext();
-                await lockScreenOrientation();
-                requestMotionAccess();
+                await requestAndStartSystem();
             } else {
-                stopMonitoring();
+                stopSystem();
             }
         });
 
-        // Global flag for event listeners to simplify add/remove logic
+        calibrateButton.addEventListener('click', () => {
+            initiateCalibrationProcess();
+        });
+
         window.eventListenersAttached = false; 
         resetAppState();
-        logMessage('App initialized (Gyro Mode). Ready for calibration and monitoring.');
+        logMessage('App initialized (Gyro Mode). Click "Start Monitoring".');
         if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
             logMessage('WARNING: Page not served over HTTPS.', 'WARN');
         } else {
