@@ -3,106 +3,47 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Abdominal Breath Monitor (Gyro - Landscape Left)</title>
+    <title>Adaptive Breath Monitor (Gyro)</title>
     <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background-color: #f4f4f4;
-            color: #333;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            text-align: center;
-        }
-        .container {
-            background-color: #fff;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            width: 100%;
-            max-width: 400px;
-        }
-        h1 {
-            color: #007aff;
-            margin-bottom: 20px;
-        }
-        button {
-            background-color: #007aff;
-            color: white;
-            border: none;
-            padding: 12px 20px;
-            font-size: 16px;
-            border-radius: 6px;
-            cursor: pointer;
-            transition: background-color 0.2s;
-            margin-bottom: 10px;
-        }
-        button:hover {
-            background-color: #005ecb;
-        }
-        button:disabled {
-            background-color: #cccccc;
-            cursor: not-allowed;
-        }
-        #calibrateButton {
-            background-color: #ff9500;
-        }
-        #calibrateButton:hover {
-            background-color: #e08500;
-        }
-        .data-display {
-            margin-bottom: 15px;
-            padding: 10px;
-            background-color: #e9e9eb;
-            border-radius: 4px;
-        }
-        .data-display p { margin: 5px 0; font-size: 18px; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 20px; background-color: #f4f4f4; color: #333; display: flex; flex-direction: column; align-items: center; text-align: center; }
+        .container { background-color: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); width: 100%; max-width: 400px; }
+        h1 { color: #007aff; margin-bottom: 15px; }
+        button { background-color: #007aff; color: white; border: none; padding: 12px 20px; font-size: 16px; border-radius: 6px; cursor: pointer; transition: background-color 0.2s; margin-bottom: 10px; }
+        button:hover { background-color: #005ecb; }
+        button:disabled { background-color: #cccccc; cursor: not-allowed; }
+        #collectDataButton { background-color: #34c759; } /* Green for data collection */
+        #collectDataButton:hover { background-color: #2ca349; }
+        .data-display { margin-bottom: 12px; padding: 10px; background-color: #e9e9eb; border-radius: 4px; }
+        .data-display p { margin: 5px 0; font-size: 17px; }
         .data-display span { font-weight: bold; color: #333; }
         #breathRateDisplay { font-size: 24px; color: #28a745; }
         #movementDisplay { color: #17a2b8; font-weight: bold; }
-        #logArea {
-            width: 100%; height: 130px; border: 1px solid #ccc; /* Reduced height a bit */
-            border-radius: 4px; padding: 8px; font-family: monospace;
-            font-size: 12px; overflow-y: scroll; box-sizing: border-box;
-            background-color: #f9f9f9;
-        }
-        .instructions {
-            font-size: 14px; color: #555; margin-bottom: 15px;
-            text-align: left; padding: 10px; background-color: #fff3cd;
-            border: 1px solid #ffeeba; border-radius: 4px;
-        }
-        .important-note {
-            font-size: 13px; color: #c00; margin-bottom:15px; text-align:left; padding:10px; background-color: #fdd; border: 1px solid #fbb; border-radius: 4px;
-        }
+        #logArea { width: 100%; height: 120px; border: 1px solid #ccc; border-radius: 4px; padding: 8px; font-family: monospace; font-size: 11px; overflow-y: scroll; box-sizing: border-box; background-color: #f9f9f9; margin-top:5px; }
+        .instructions { font-size: 13px; color: #555; margin-bottom: 10px; text-align: left; padding: 10px; background-color: #fff3cd; border: 1px solid #ffeeba; border-radius: 4px; }
+        .instructions ul {padding-left: 20px; margin-top: 5px;}
+        .instructions li {margin-bottom: 3px;}
+        .important-note { font-size: 12px; color: #555; margin-top:5px; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Abdominal Breath Monitor</h1>
+        <h1>Adaptive Breath Monitor</h1>
         <div class="instructions">
             <strong>Phone Placement:</strong>
             <ul>
                 <li>Place phone FACE UP on your tummy.</li>
                 <li>Orient phone so its TOP edge points to your LEFT side.</li>
-                <li>(Gyro X-Tilt / Beta should increase on inhale).</li>
             </ul>
             <strong>Operation:</strong>
             <ol>
-                <li>Ensure HTTPS.</li>
-                <li>Tap "Start Monitoring" & grant permissions.</li>
-                <li>Tap "Calibrate" and follow prompts (tone plays during hold).</li>
-                <li>Breathe normally.</li>
+                <li>Tap "Start System" & grant permissions.</li>
+                <li>Tap "Start 1-Min Data Collection" and breathe normally.</li>
+                <li>After analysis, breathing will be monitored.</li>
             </ol>
         </div>
 
-        <div class="important-note">
-            <strong>Fine-Tune Threshold:</strong> The 'Beta Tilt Threshold' in the code (currently <code id="thresholdValueDisplay">0.1</code>°) is critical. You may need to adjust this for your device and breathing. Observe 'Raw Beta' changes.
-        </div>
-
-        <button id="startButton">Start Monitoring</button>
-        <button id="calibrateButton" style="display: none;">Calibrate</button>
+        <button id="startButton">Start System</button>
+        <button id="collectDataButton" style="display: none;">Start 1-Min Data Collection</button>
 
         <div class="data-display">
             <p>Status: <span id="movementDisplay">--</span></p>
@@ -112,24 +53,23 @@
         </div>
         <div class="data-display" style="font-size:12px; text-align:left;">
             <p>Raw Beta (Gyro X-tilt): <span id="betaGyroDisplay">--</span> °</p>
-            <p>Calibrated Peak Inhale Beta: <span id="calibratedBetaDisplay">--</span></p>
+            <p>Learned Threshold: <span id="learnedThresholdDisplay">--</span> °</p>
             <p>Raw Z-Accel (FYI): <span id="zAccelDisplay">--</span> m/s²</p>
         </div>
-
+        <p class="important-note">For best results, remain still (except for breathing) during data collection.</p>
         <h2>Event & Error Log</h2>
         <textarea id="logArea" readonly></textarea>
     </div>
 
     <script>
         const startButton = document.getElementById('startButton');
-        const calibrateButton = document.getElementById('calibrateButton');
+        const collectDataButton = document.getElementById('collectDataButton');
         const movementDisplay = document.getElementById('movementDisplay');
         const breathRateDisplay = document.getElementById('breathRateDisplay');
         const betaGyroDisplay = document.getElementById('betaGyroDisplay');
-        const calibratedBetaDisplay = document.getElementById('calibratedBetaDisplay');
+        const learnedThresholdDisplay = document.getElementById('learnedThresholdDisplay');
         const zAccelDisplay = document.getElementById('zAccelDisplay');
         const logArea = document.getElementById('logArea');
-        const thresholdValueDisplay = document.getElementById('thresholdValueDisplay');
 
         let systemActive = false; 
         let isMonitoringBreaths = false; 
@@ -137,28 +77,19 @@
         let breathState = 'IDLE';
         let breathTimestamps = [];
         const MAX_TIMESTAMPS = 10;
-
-        // **** CRITICAL: TUNE THIS VALUE BASED ON YOUR OBSERVATIONS ****
-        // Start with a very small value since changes are in "decimal places only".
-        // Values like 0.05, 0.1, 0.2 might be appropriate.
-        const BETA_TILT_THRESHOLD = 0.1; // Degrees.
-        // *************************************************************
-
-        const MIN_BREATH_INTERVAL_MS = 1000; // Min ms between detected breaths
+        
+        let LEARNED_BETA_TILT_THRESHOLD = 0.1; // Default, will be overwritten
+        const MIN_BREATH_INTERVAL_MS = 1000; 
         let lastBreathEventTime = 0;
 
         let audioContext = null;
-        let calibrationToneOscillator = null;
-        let calibrationToneGain = null;
+        // No calibration tone needed for this approach
 
-        const CALIBRATION_DURATION_MS = 3000;
-        let calibrationState = 'NOT_CALIBRATED'; 
-        let calibrationTimer = null;
-        let calibrationBetaValues = [];
-        let calibratedInhalePeakBeta = null;
-        
-        thresholdValueDisplay.textContent = BETA_TILT_THRESHOLD;
-
+        const DATA_COLLECTION_DURATION_S = 60; // 60 seconds
+        let dataCollectionState = 'IDLE'; // IDLE, COLLECTING, ANALYZING, COMPLETE
+        let dataCollectionTimer = null;
+        let recordedBetaValues = [];
+        const STD_DEV_MULTIPLIER_FOR_THRESHOLD = 1.2; // Factor to multiply std dev by for threshold
 
         function logMessage(message, type = 'INFO') {
             const now = new Date();
@@ -167,16 +98,16 @@
             logArea.scrollTop = logArea.scrollHeight;
         }
 
-        async function lockScreenOrientation() {
+        async function lockScreenOrientation() { /* ... (same as before) ... */ 
             try {
                 if (screen.orientation && typeof screen.orientation.lock === 'function') {
                     await screen.orientation.lock('portrait-primary');
-                    logMessage('Screen orientation locked to portrait.');
+                    logMessage('Screen orientation locked.');
                 } else { logMessage('Screen lock API not fully supported.', 'WARN'); }
             } catch (error) { logMessage(`Screen lock error: ${error.message}`, 'WARN'); }
         }
 
-        function initializeAudioContext() {
+        function initializeAudioContext() { /* ... (same as before) ... */ 
             if (!audioContext) {
                 try {
                     audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -188,7 +119,7 @@
             }
         }
 
-        function playBeep(duration = 0.07, frequency = 900, volume = 0.25) { // Shorter, slightly higher pitch beep
+        function playBeep(duration = 0.07, frequency = 900, volume = 0.25) { /* ... (same as before) ... */ 
             if (!audioContext || audioContext.state !== 'running') return;
             try {
                 const oscillator = audioContext.createOscillator();
@@ -205,87 +136,99 @@
             } catch (e) { logMessage(`Error playing beep: ${e.message}`, 'ERROR'); }
         }
 
-
-        function startCalibrationTone() {
-            if (!audioContext || audioContext.state !== 'running') {
-                logMessage('AudioContext not ready for calibration tone.', 'WARN');
-                return;
-            }
-            if (calibrationToneOscillator) { stopCalibrationTone(); }
-            try {
-                calibrationToneOscillator = audioContext.createOscillator();
-                calibrationToneGain = audioContext.createGain();
-                calibrationToneOscillator.type = 'sine';
-                calibrationToneOscillator.frequency.setValueAtTime(330, audioContext.currentTime); // E4 note
-                calibrationToneGain.gain.setValueAtTime(0.15, audioContext.currentTime); 
-                calibrationToneOscillator.connect(calibrationToneGain);
-                calibrationToneGain.connect(audioContext.destination);
-                calibrationToneOscillator.start(audioContext.currentTime);
-                logMessage('Calibration tone started.');
-            } catch (e) {
-                logMessage(`Error starting calibration tone: ${e.message}`, 'ERROR');
-                calibrationToneOscillator = null; calibrationToneGain = null;
-            }
-        }
-
-        function stopCalibrationTone() {
-            if (calibrationToneOscillator) {
-                try {
-                    calibrationToneOscillator.stop(audioContext.currentTime);
-                    calibrationToneOscillator.disconnect();
-                    calibrationToneGain.disconnect();
-                    logMessage('Calibration tone stopped.');
-                } catch(e) { logMessage(`Error stopping tone: ${e.message}`, 'WARN');}
-                calibrationToneOscillator = null; calibrationToneGain = null;
-            }
-        }
-
-        function initiateCalibrationProcess() {
+        function startDataCollection() {
             if (!systemActive) {
-                logMessage('System not active. Click "Start Monitoring" first.', 'WARN'); return;
+                logMessage('System not active. Click "Start System" first.', 'WARN'); return;
             }
-            if (['CALIBRATING_HOLD', 'CALIBRATING_PROMPT'].includes(calibrationState)) {
-                logMessage('Calibration already in progress.', 'INFO'); return;
+            if (dataCollectionState === 'COLLECTING') {
+                logMessage('Data collection already in progress.', 'INFO'); return;
             }
-            isMonitoringBreaths = false; 
-            startButton.disabled = true; calibrateButton.disabled = true;
-            calibrationState = 'CALIBRATING_PROMPT';
-            movementDisplay.textContent = 'Inhale fully, then HOLD your breath...';
-            logMessage('Calibration: Prompting inhale and hold.');
+
+            isMonitoringBreaths = false; // Pause breath detection
+            startButton.disabled = true;
+            collectDataButton.disabled = true;
+            collectDataButton.textContent = 'Collecting Data...';
+            dataCollectionState = 'COLLECTING';
+            recordedBetaValues = [];
+            movementDisplay.textContent = `Collecting data for ${DATA_COLLECTION_DURATION_S}s... Breathe normally.`;
+            logMessage(`Starting ${DATA_COLLECTION_DURATION_S}s data collection.`);
             
+            let countdown = DATA_COLLECTION_DURATION_S;
+            const countdownInterval = setInterval(() => {
+                countdown--;
+                if (dataCollectionState === 'COLLECTING') {
+                    movementDisplay.textContent = `Collecting data... ${countdown}s remaining. Breathe normally.`;
+                }
+                if (countdown <= 0) {
+                    clearInterval(countdownInterval);
+                }
+            }, 1000);
+
+            dataCollectionTimer = setTimeout(() => {
+                clearInterval(countdownInterval); // Ensure cleared
+                if (dataCollectionState === 'COLLECTING') {
+                    finishDataCollectionAndAnalyze();
+                }
+            }, DATA_COLLECTION_DURATION_S * 1000);
+        }
+
+        function finishDataCollectionAndAnalyze() {
+            dataCollectionState = 'ANALYZING';
+            movementDisplay.textContent = 'Analyzing data... Please wait.';
+            logMessage(`Data collection finished. Recorded ${recordedBetaValues.length} Beta samples. Analyzing...`);
+
+            // Perform analysis (simulated delay for now, then actual logic)
             setTimeout(() => {
-                if (calibrationState !== 'CALIBRATING_PROMPT') return; 
-                calibrationState = 'CALIBRATING_HOLD';
-                calibrationBetaValues = [];
-                movementDisplay.textContent = `HOLDING breath... ${CALIBRATION_DURATION_MS/1000}s (tone playing)`;
-                logMessage(`Calibration: Holding for ${CALIBRATION_DURATION_MS/1000}s.`);
-                startCalibrationTone();
-                let c = CALIBRATION_DURATION_MS/1000;
-                const intv = setInterval(() => { c--; if (c > 0 && calibrationState === 'CALIBRATING_HOLD') movementDisplay.textContent = `HOLDING breath... ${c}s (tone playing)`; }, 1000);
-                calibrationTimer = setTimeout(() => { clearInterval(intv); stopCalibrationTone(); if (calibrationState === 'CALIBRATING_HOLD') finishCalibration(); }, CALIBRATION_DURATION_MS);
-            }, 2000); 
+                if (recordedBetaValues.length < 20) { // Need a reasonable number of samples
+                    logMessage('Not enough data collected for reliable analysis. Using default threshold.', 'WARN');
+                    LEARNED_BETA_TILT_THRESHOLD = 0.1; // Fallback to a default
+                    learnedThresholdDisplay.textContent = `${LEARNED_BETA_TILT_THRESHOLD.toFixed(3)}° (default)`;
+                } else {
+                    const deltaBetas = [];
+                    for (let i = 1; i < recordedBetaValues.length; i++) {
+                        deltaBetas.push(recordedBetaValues[i] - recordedBetaValues[i-1]);
+                    }
+
+                    if (deltaBetas.length === 0) {
+                        logMessage('No delta Beta values to analyze. Using default threshold.', 'WARN');
+                        LEARNED_BETA_TILT_THRESHOLD = 0.1;
+                        learnedThresholdDisplay.textContent = `${LEARNED_BETA_TILT_THRESHOLD.toFixed(3)}° (default)`;
+                    } else {
+                        const absDeltaBetas = deltaBetas.map(d => Math.abs(d));
+                        
+                        // Filter out extremely small deltas that are likely just noise
+                        const significantAbsDeltaBetas = absDeltaBetas.filter(d => d > 0.001); // Adjust this noise floor if needed
+
+                        if (significantAbsDeltaBetas.length < 10) {
+                             logMessage('Not enough significant deltas after filtering. Using a sensitive default.', 'WARN');
+                             LEARNED_BETA_TILT_THRESHOLD = 0.05; // Fallback to a more sensitive default
+                             learnedThresholdDisplay.textContent = `${LEARNED_BETA_TILT_THRESHOLD.toFixed(3)}° (sensitive default)`;
+                        } else {
+                            const sum = significantAbsDeltaBetas.reduce((acc, val) => acc + val, 0);
+                            const mean = sum / significantAbsDeltaBetas.length;
+                            const sqDiffs = significantAbsDeltaBetas.map(val => Math.pow(val - mean, 2));
+                            const avgSqDiff = sqDiffs.reduce((acc, val) => acc + val, 0) / significantAbsDeltaBetas.length;
+                            const stdDev = Math.sqrt(avgSqDiff);
+
+                            LEARNED_BETA_TILT_THRESHOLD = Math.max(0.02, STD_DEV_MULTIPLIER_FOR_THRESHOLD * stdDev); // Ensure threshold is not excessively small
+                            logMessage(`Analysis complete. Mean Abs Delta: ${mean.toFixed(4)}, StdDev Abs Delta: ${stdDev.toFixed(4)}`);
+                            learnedThresholdDisplay.textContent = `${LEARNED_BETA_TILT_THRESHOLD.toFixed(3)}° (learned)`;
+                        }
+                    }
+                }
+                logMessage(`Learned Threshold set to: ${LEARNED_BETA_TILT_THRESHOLD.toFixed(3)}°`);
+                dataCollectionState = 'COMPLETE';
+                movementDisplay.textContent = 'Analysis complete. Monitoring breaths.';
+                isMonitoringBreaths = true; 
+                startButton.disabled = false; 
+                collectDataButton.disabled = false; 
+                collectDataButton.textContent = 'Re-Collect Data (1-Min)';
+                lastBeta = null; 
+                breathState = 'IDLE';
+            }, 500); // Short delay to simulate analysis
         }
 
-        function finishCalibration() {
-            stopCalibrationTone(); 
-            if (calibrationBetaValues.length > 0) {
-                calibratedInhalePeakBeta = calibrationBetaValues.reduce((s, v) => s + v, 0) / calibrationBetaValues.length;
-                calibratedBetaDisplay.textContent = calibratedInhalePeakBeta.toFixed(3) + '°'; // Display more precision
-                logMessage(`Calibration complete. Avg Peak Inhale Beta: ${calibratedInhalePeakBeta.toFixed(3)}°`);
-            } else {
-                logMessage('Calibration: No Beta values collected.', 'WARN');
-                calibratedBetaDisplay.textContent = 'N/A';
-            }
-            calibrationState = 'CALIBRATED';
-            movementDisplay.textContent = 'Calibrated. Breathe normally.';
-            logMessage('Breath monitoring active.');
-            isMonitoringBreaths = true; 
-            startButton.disabled = false; calibrateButton.disabled = false; 
-            calibrateButton.textContent = 'Re-Calibrate';
-            lastBeta = null; breathState = 'IDLE';
-        }
-
-        async function requestAndStartSystem() {
+        async function requestAndStartSystem() { /* ... (same as before, but no calibrationState change here) ... */ 
             logMessage('Requesting permissions...');
             let permGranted = false;
             if (window.DeviceMotionEvent && typeof DeviceMotionEvent.requestPermission === 'function') {
@@ -293,23 +236,27 @@
             } else if (window.DeviceOrientationEvent || window.DeviceMotionEvent) {logMessage('Sensors available (no explicit perm needed or already granted).'); permGranted=true;} else {logMessage('Sensor APIs not supported.','ERROR');alert('Sensor APIs not supported.');}
 
             if (permGranted) {
-                systemActive = true; calibrationState = 'AWAITING_CALIBRATION';
+                systemActive = true; 
+                // dataCollectionState remains 'IDLE' or its current state until button is pressed
                 initializeAudioContext(); await lockScreenOrientation();
                 if (!window.eventListenersAttached) {
                     window.addEventListener('deviceorientation', handleOrientationEvent);
                     window.addEventListener('devicemotion', handleMotionEvent); 
                     window.eventListenersAttached = true; logMessage('Sensor listeners attached.');
                 }
-                startButton.textContent = 'Stop Monitoring';
-                movementDisplay.textContent = 'System active. Tap "Calibrate".';
-                calibrateButton.style.display = 'inline-block'; calibrateButton.disabled = false;
+                startButton.textContent = 'Stop System';
+                movementDisplay.textContent = 'System active. Tap "Start 1-Min Data Collection".';
+                collectDataButton.style.display = 'inline-block'; collectDataButton.disabled = false;
+                learnedThresholdDisplay.textContent = '--'; // Reset display
             }
             startButton.disabled = false; 
         }
 
-        function stopSystem() {
-            logMessage('Stopping system.'); stopCalibrationTone(); 
-            if (calibrationTimer) clearTimeout(calibrationTimer);
+        function stopSystem() { /* ... (same as before, ensuring dataCollectionTimer is cleared) ... */ 
+            logMessage('Stopping system.'); 
+            if (dataCollectionTimer) clearTimeout(dataCollectionTimer);
+            dataCollectionState = 'IDLE'; // Reset data collection state
+            
             if (window.eventListenersAttached) {
                 window.removeEventListener('deviceorientation', handleOrientationEvent);
                 window.removeEventListener('devicemotion', handleMotionEvent);
@@ -318,23 +265,27 @@
             resetAppState();
         }
 
-        function resetAppState() {
+        function resetAppState() { /* ... (same as before, with dataCollectionState reset) ... */
             systemActive = false; isMonitoringBreaths = false;
-            startButton.textContent = 'Start Monitoring'; startButton.disabled = false;
-            calibrateButton.style.display = 'none'; calibrateButton.disabled = true; calibrateButton.textContent = 'Calibrate';
+            startButton.textContent = 'Start System'; startButton.disabled = false;
+            collectDataButton.style.display = 'none'; collectDataButton.disabled = true; collectDataButton.textContent = 'Start 1-Min Data Collection';
             lastBeta = null; breathState = 'IDLE'; breathTimestamps = [];
-            calibrationState = 'NOT_CALIBRATED'; calibrationBetaValues = []; calibratedInhalePeakBeta = null;
+            dataCollectionState = 'IDLE'; recordedBetaValues = []; 
+            LEARNED_BETA_TILT_THRESHOLD = 0.1; // Reset to default
+            learnedThresholdDisplay.textContent = '--';
+            
             movementDisplay.textContent = '--'; breathRateDisplay.textContent = '--';
-            betaGyroDisplay.textContent = '--'; calibratedBetaDisplay.textContent = '--'; zAccelDisplay.textContent = '--';
-            if(window.eventListenersAttached) { // Defensive removal
+            betaGyroDisplay.textContent = '--';  zAccelDisplay.textContent = '--';
+            
+            if(window.eventListenersAttached) { 
                 window.removeEventListener('deviceorientation', handleOrientationEvent);
                 window.removeEventListener('devicemotion', handleMotionEvent);
                 window.eventListenersAttached = false;
             }
         }
 
-        function handleMotionEvent(event) {
-            if (systemActive && event.accelerationIncludingGravity && event.accelerationIncludingGravity.z !== null) {
+        function handleMotionEvent(event) { /* ... (same as before) ... */ 
+             if (systemActive && event.accelerationIncludingGravity && event.accelerationIncludingGravity.z !== null) {
                 zAccelDisplay.textContent = event.accelerationIncludingGravity.z.toFixed(3);
             } else if (!systemActive) { zAccelDisplay.textContent = 'N/A'; }
         }
@@ -344,32 +295,28 @@
                 if (!systemActive) betaGyroDisplay.textContent = 'N/A'; return;
             }
             const currentBeta = event.beta;
-            betaGyroDisplay.textContent = currentBeta.toFixed(3); // Display with more precision
+            betaGyroDisplay.textContent = currentBeta.toFixed(3); 
 
-            if (calibrationState === 'CALIBRATING_HOLD') {
-                calibrationBetaValues.push(currentBeta); return; 
+            if (dataCollectionState === 'COLLECTING') {
+                recordedBetaValues.push(currentBeta); 
+                return; 
             }
-            if (!isMonitoringBreaths || calibrationState !== 'CALIBRATED') return; 
+            if (!isMonitoringBreaths || dataCollectionState !== 'COMPLETE') return; 
             if (lastBeta === null) { lastBeta = currentBeta; return; }
 
             const deltaBeta = currentBeta - lastBeta;
             const currentTime = Date.now();
 
-            // Expected phone orientation: Top of phone pointing to user's LEFT.
-            // In this setup, Beta (X-axis tilt) is observed to INCREASE on INHALE.
             if (breathState === 'IDLE' || breathState === 'FALLING') {
-                if (deltaBeta > BETA_TILT_THRESHOLD) { // Inhale detected
+                if (deltaBeta > LEARNED_BETA_TILT_THRESHOLD) { 
                     breathState = 'RISING';
                     movementDisplay.textContent = 'Inhaling (Tilt Up)';
-                    // logMessage(`Inhale (Delta Beta: ${deltaBeta.toFixed(3)})`); // Can be noisy
                     playBeep();
                 }
             } else if (breathState === 'RISING') {
-                if (deltaBeta < -BETA_TILT_THRESHOLD) { // Exhale detected
+                if (deltaBeta < -LEARNED_BETA_TILT_THRESHOLD) { 
                     breathState = 'FALLING';
                     movementDisplay.textContent = 'Exhaling (Tilt Down)';
-                    // logMessage(`Exhale (Delta Beta: ${deltaBeta.toFixed(3)})`); // Can be noisy
-
                     if (currentTime - lastBreathEventTime > MIN_BREATH_INTERVAL_MS) {
                         breathTimestamps.push(currentTime);
                         if (breathTimestamps.length > MAX_TIMESTAMPS) breathTimestamps.shift();
@@ -381,14 +328,13 @@
             lastBeta = currentBeta;
         }
         
-        function calculateBreathRate() {
+        function calculateBreathRate() { /* ... (same as before) ... */ 
             if (breathTimestamps.length < 2) { breathRateDisplay.textContent = '--'; return; }
             const durationS = (breathTimestamps[breathTimestamps.length - 1] - breathTimestamps[0]) / 1000;
             const numBreaths = breathTimestamps.length - 1;
             if (durationS > 0) {
                 const bpm = (numBreaths / durationS) * 60;
                 breathRateDisplay.textContent = bpm.toFixed(1);
-                // logMessage(`Breath rate: ${bpm.toFixed(1)} BPM`); // Can be noisy
             } else { breathRateDisplay.textContent = '--'; }
         }
 
@@ -403,11 +349,11 @@
             } else { stopSystem(); }
         });
 
-        calibrateButton.addEventListener('click', () => { initiateCalibrationProcess(); });
+        collectDataButton.addEventListener('click', () => { startDataCollection(); });
 
         window.eventListenersAttached = false; 
         resetAppState();
-        logMessage('App initialized. Set phone orientation, then Start.');
+        logMessage('App initialized. Set phone, then Start System.');
         if (window.location.protocol !== 'https:' && !['localhost', '127.0.0.1'].includes(window.location.hostname)) {
             logMessage('WARNING: Page not HTTPS. Sensor access may fail.', 'WARN');
         } else { logMessage('Page served over HTTPS or localhost. Good.', 'INFO'); }
