@@ -2,12 +2,11 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Accelerometer X - Peak Frequency</title>
+    <title>Breathing Rate (Accel X, Max-Min)</title>
 
     <!-- Apple Web App Meta Tags -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <!-- <link rel="apple-touch-icon" href="your-icon.png"> -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -31,7 +30,8 @@
             background-color: #fff;
             border-radius: 8px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            font-size: 1.1em;
+            font-size: 1.2em;
+            font-weight: bold;
         }
         .permission-section, .calibration-notice {
             text-align: center;
@@ -78,13 +78,13 @@
 </head>
 <body>
     <div class="container">
-        <h1>Accelerometer X - Peak Frequency</h1>
-        <p style="text-align: center;">Displaying Accelerometer X with 0.1s sampling and SG filter.</p>
+        <h1>Breathing Rate (Accelerometer X)</h1>
+        <p style="text-align: center;">Place phone so its X-axis (usually side-to-side in portrait) aligns with breathing motion. Uses 0.1s sampling & SG filter.</p>
 
-        <div id="peakFrequencyDisplay" class="info-display">Peak Frequency: Waiting for data...</div>
+        <div id="breathRateDisplay" class="info-display">Breathing Rate: Waiting for data...</div>
 
         <div id="permissionSection" class="permission-section">
-            <p>This app requires access to your device's motion sensors for Accelerometer X.</p>
+            <p>This app requires access to your device's motion sensors.</p>
             <button id="requestPermissionButton">Grant Motion Sensor Access</button>
         </div>
 
@@ -106,28 +106,29 @@
     </div>
 
     <script>
-        const MAX_CHART_POINTS = 50;
-        const SG_WINDOW_SIZE = 5;
-        const SG_COEFFICIENTS = [-3, 12, 17, 12, -3];
-        const SG_DENOMINATOR = 35;
-        const MAX_RAW_DATA_STORAGE = MAX_CHART_POINTS;
+        const MAX_CHART_POINTS = 100;
+        const SG_WINDOW_SIZE = 5; // Original for AccelX
+        const SG_COEFFICIENTS = [-3, 12, 17, 12, -3]; // Original for AccelX
+        const SG_DENOMINATOR = 35; // Original for AccelX
+        const MAX_RAW_DATA_STORAGE = MAX_CHART_POINTS * 2;
 
-        const CALIBRATION_DELAY_MS = 10000;
-        const CALIBRATION_DURATION_MS = 30000;
+        const CALIBRATION_DELAY_MS = 5000;
+        const CALIBRATION_DURATION_MS = 15000;
 
-        const TARGET_SENSOR_KEY = 'accelX';
-        const SAMPLING_INTERVAL_MS = 100;
+        const TARGET_SENSOR_KEY = 'accelX'; // Using Accelerometer X
+        const SAMPLING_INTERVAL_MS = 100; // 0.1 seconds
         const SG_FILTER_ALWAYS_ACTIVE = true;
 
-        // --- Peak Frequency Settings ---
-        const MAX_PEAKS_FOR_FREQUENCY = 5;
-        let lastNPeaksTimestamps = []; // Stores timestamps of the last N peaks
+        // --- Breathing Rate Detection Settings ---
+        const MAX_BREATH_EVENTS_FOR_RATE = 6; // Calculate BPM over last N breath events
+        let lastBreathEventTimestamps = [];   // Timestamps when a "maxima followed by minima" event completes
         let previousFilteredValueAccelX = null;
-        let trendAccelX = 'flat'; // 'rising', 'falling', 'flat'
-        // --- End Peak Frequency Settings ---
+        let breathDetectionState = 'LOOKING_FOR_PEAK'; // 'LOOKING_FOR_PEAK', 'LOOKING_FOR_TROUGH_AFTER_PEAK'
+        let lastPeakTimeAccelX = null;
+        // --- End Breathing Rate Settings ---
 
         const logArea = document.getElementById('logArea');
-        const peakFrequencyDisplay = document.getElementById('peakFrequencyDisplay');
+        const breathRateDisplay = document.getElementById('breathRateDisplay');
         const permissionSection = document.getElementById('permissionSection');
         const calibrationNotice = document.getElementById('calibrationNotice');
         const calibrationText = document.getElementById('calibrationText');
@@ -141,7 +142,7 @@
         let calibrationStartTimestamp;
         let tempCalibrationData = { accelX: [], accelY: [], accelZ: [], gyroAlpha: [], gyroBeta: [], gyroGamma: [] };
         let sensorZeroOffsets = { accelX: 0, accelY: 0, accelZ: 0, gyroAlpha: 0, gyroBeta: 0, gyroGamma: 0 };
-        let lastSampledTime = { [TARGET_SENSOR_KEY]: 0 }; // Timestamp of the last processed data point for the sensor
+        let lastSampledTime = { [TARGET_SENSOR_KEY]: 0 };
 
 
         function logMessage(message, type = 'info') {
@@ -154,7 +155,7 @@
             logArea.scrollTop = logArea.scrollHeight;
         }
 
-        function createChart(canvasId) { /* ... same as before ... */
+        function createChart(canvasId) {
             const ctx = document.getElementById(canvasId).getContext('2d');
             return new Chart(ctx, {
                 type: 'line',
@@ -163,63 +164,129 @@
                     datasets: [{
                         label: 'Accelerometer X (SG, 0.1s)',
                         data: [],
-                        borderColor: 'rgb(75, 192, 192)',
+                        borderColor: 'rgb(255, 99, 132)', // A different color for AccelX
                         tension: 0.1,
-                        fill: false
+                        fill: false,
+                        pointRadius: 1
                     }]
                 },
                 options: {
                     responsive: true, maintainAspectRatio: true,
-                    scales: { x: { display: true }, y: { display: true } },
+                    scales: { x: { display: true }, y: { display: true, title: {display: true, text: 'Accel X (m/s^2)'} } },
                     animation: { duration: 0 },
                     plugins: { legend: { display: true, position: 'top' } }
                 }
             });
         }
 
-        function savitzkyGolaySmooth(data) { /* ... same as before ... */
+        function savitzkyGolaySmooth(data) {
             const windowSize = SG_WINDOW_SIZE;
             const coeffs = SG_COEFFICIENTS;
             const denominator = SG_DENOMINATOR;
             const halfWindow = Math.floor(windowSize / 2);
             const smoothedData = [];
             if (data.length === 0) return [];
+
+            const paddedData = [];
+            for (let i = 0; i < halfWindow; i++) paddedData.push(data[0]);
+            paddedData.push(...data);
+            for (let i = 0; i < halfWindow; i++) paddedData.push(data[data.length - 1]);
+
             for (let i = 0; i < data.length; i++) {
-                if (i < halfWindow || i >= data.length - halfWindow || data.length < windowSize) {
-                    smoothedData.push(data[i]);
-                } else {
-                    let sum = 0;
-                    for (let j = 0; j < windowSize; j++) {
-                        sum += coeffs[j] * data[i - halfWindow + j];
-                    }
-                    smoothedData.push(sum / denominator);
+                let sum = 0;
+                for (let j = 0; j < windowSize; j++) {
+                    sum += coeffs[j] * paddedData[i + j];
                 }
+                smoothedData.push(sum / denominator);
             }
             return smoothedData;
         }
 
-        function calculateAndDisplayPeakFrequency() {
-            if (lastNPeaksTimestamps.length < 2) {
-                peakFrequencyDisplay.textContent = `Peak Frequency: Waiting for at least 2 peaks (${lastNPeaksTimestamps.length}/${MAX_PEAKS_FOR_FREQUENCY} collected)...`;
+        function calculateAndDisplayBreathingRate() {
+            if (lastBreathEventTimestamps.length < 2) {
+                breathRateDisplay.textContent = `Breathing Rate: Waiting for at least 2 breath events (${lastBreathEventTimestamps.length}/${MAX_BREATH_EVENTS_FOR_RATE} collected)...`;
                 return;
             }
 
-            // Sort timestamps just in case, though they should be in order
-            const sortedTimestamps = [...lastNPeaksTimestamps].sort((a, b) => a - b);
-            const oldestPeakTime = sortedTimestamps[0];
-            const newestPeakTime = sortedTimestamps[sortedTimestamps.length - 1];
+            const sortedTimestamps = [...lastBreathEventTimestamps].sort((a, b) => a - b);
+            const oldestEventTime = sortedTimestamps[0];
+            const newestEventTime = sortedTimestamps[sortedTimestamps.length - 1];
 
-            const totalDurationSeconds = (newestPeakTime - oldestPeakTime) / 1000;
+            const totalDurationSeconds = (newestEventTime - oldestEventTime) / 1000;
             const numberOfIntervals = sortedTimestamps.length - 1;
 
             if (totalDurationSeconds > 0 && numberOfIntervals > 0) {
-                const peaksPerMinute = (numberOfIntervals / totalDurationSeconds) * 60;
-                peakFrequencyDisplay.textContent = `Peak Frequency (last ${sortedTimestamps.length} peaks): ${peaksPerMinute.toFixed(2)} RPM`;
-            } else if (numberOfIntervals === 0 && sortedTimestamps.length ===1){
-                 peakFrequencyDisplay.textContent = `Peak Frequency: 1 peak collected. Need more.`;
+                const breathsPerMinute = (numberOfIntervals / totalDurationSeconds) * 60;
+                breathRateDisplay.textContent = `Breathing Rate (${sortedTimestamps.length-1} events): ${breathsPerMinute.toFixed(1)} BPM`;
+            } else if (numberOfIntervals === 0 && sortedTimestamps.length === 1){
+                 breathRateDisplay.textContent = `Breathing Rate: 1 event collected. Need more.`;
+            } else {
+                breathRateDisplay.textContent = "Breathing Rate: Calculating...";
             }
-            else {
-                peakFrequencyDisplay.textContent = "Peak Frequency: Calculating...";
+        }
+
+        function processAccelXForBreathRate(currentFilteredValue, previousFilteredValue, currentTime) {
+            if (previousFilteredValue === null) return;
+
+            let currentTrend = 'flat';
+            if (currentFilteredValue > previousFilteredValue) currentTrend = 'rising';
+            else if (currentFilteredValue < previousFilteredValue) currentTrend = 'falling';
+
+            // Detect Peak (transition from rising to falling)
+            if (previousFilteredValue !== null) { // Ensure we have a previous value to determine trend change
+                 // To detect a peak, the value before `previousFilteredValue` should have been less than it,
+                 // and `currentFilteredValue` is now less than `previousFilteredValue`.
+                 // Simplified: If trend *was* rising (based on an even earlier point or assumption) and now is falling.
+                 // For simplicity, we'll check if `previousFilteredValue` was a local maximum relative to `currentFilteredValue`
+                 // and implicitly assume it was rising before that.
+                 // This logic is slightly different from a strict 3-point peak. It relies on the change of direction.
+
+                 // More robust: track previous trend
+                 // For this simplified version, we are looking for a point that was higher than the current,
+                 // and we are in a state expecting a peak.
+
+                if (currentTrend === 'falling' && breathDetectionState === 'LOOKING_FOR_PEAK') {
+                    // To be a peak, previousFilteredValue should be greater than the one before it (if available)
+                    // and greater than currentFilteredValue. We use currentFilteredValue < previousFilteredValue as the trigger.
+                    // We need to ensure it was actually rising before this fall.
+                    // This logic needs careful thought to avoid detecting minor ripples.
+                    // Let's assume a peak occurs when we switch from rising to falling.
+                    // This means previousFilteredValue was the peak.
+                    // The time of this peak is `currentTime - SAMPLING_INTERVAL_MS`.
+
+                    // A simpler way: was it rising, and now it's falling?
+                    // This needs to track the trend from the point *before* previousFilteredValue.
+                    // To avoid too much complexity here, let's use a slightly simplified peak definition:
+                    // If we were generally rising and now we are falling, previousFilteredValue was the peak.
+                    // This part is tricky without a third point or a clear previous trend state.
+
+                    // Let's use the provided state machine logic:
+                    // If we were `LOOKING_FOR_PEAK` and `currentFilteredValue < previousFilteredValue`,
+                    // and `previousFilteredValue` was *greater than the one before it* (implicit by LOOKING_FOR_PEAK)
+                    // then `previousFilteredValue` is the peak.
+                    // For this simplified code, we'll just say if state is LOOKING_FOR_PEAK and it starts falling
+                    if (previousFilteredValue > currentFilteredValue) { // It started falling
+                        logMessage(`Potential AccelX Peak detected at ${previousFilteredValue.toFixed(3)}. Switching to find Trough.`, 'info');
+                        lastPeakTimeAccelX = currentTime - SAMPLING_INTERVAL_MS; // Time of the actual peak value
+                        breathDetectionState = 'LOOKING_FOR_TROUGH_AFTER_PEAK';
+                    }
+                }
+                // Detect Trough (transition from falling to rising) AFTER a peak was found
+                else if (currentTrend === 'rising' && breathDetectionState === 'LOOKING_FOR_TROUGH_AFTER_PEAK') {
+                    // Similar logic: previousFilteredValue was the trough.
+                     if (previousFilteredValue < currentFilteredValue) { // It started rising
+                        logMessage(`AccelX Trough detected at ${previousFilteredValue.toFixed(3)} after Peak. Breath event recorded.`, 'info');
+                        // This `currentTime - SAMPLING_INTERVAL_MS` is the time of the trough.
+                        // This marks the completion of "maximal ... followed by minimal"
+                        lastBreathEventTimestamps.push(currentTime - SAMPLING_INTERVAL_MS);
+                        if (lastBreathEventTimestamps.length > MAX_BREATH_EVENTS_FOR_RATE) {
+                            lastBreathEventTimestamps.shift();
+                        }
+                        calculateAndDisplayBreathingRate();
+                        breathDetectionState = 'LOOKING_FOR_PEAK'; // Reset to find the next peak
+                        lastPeakTimeAccelX = null; // Clear the last peak time
+                    }
+                }
             }
         }
 
@@ -230,106 +297,86 @@
             if (dataObj.raw.length > MAX_RAW_DATA_STORAGE) {
                 dataObj.raw.shift();
             }
-            const currentInputSegmentForChart = dataObj.raw.slice(-MAX_CHART_POINTS);
-            dataObj.filteredForChart = savitzkyGolaySmooth(currentInputSegmentForChart);
 
-            if (key === TARGET_SENSOR_KEY && dataObj.filteredForChart.length > 0) {
-                const currentFiltered = dataObj.filteredForChart[dataObj.filteredForChart.length - 1];
+            const allFiltered = savitzkyGolaySmooth(dataObj.raw);
+            dataObj.filteredForChart = allFiltered.slice(-MAX_CHART_POINTS);
 
-                // The timestamp for peak detection should be the time of the *actual peak data point*.
-                // If we detect peak based on previous vs current, the peak was `previousFilteredValueAccelX`
-                // which occurred at the previous sample's time. However, `currentSampleTime` is the time
-                // of the *current* data point. For simplicity, we will use the `currentSampleTime` of the point
-                // that *confirmed* the previous point was a peak. This introduces a slight delay but is easier.
-                // A more accurate way would be to store timestamps along with values.
-
-                if (previousFilteredValueAccelX !== null) {
-                    // Peak detected if trend was rising and now it's falling (or flat after rising)
-                    if (trendAccelX === 'rising' && currentFiltered < previousFilteredValueAccelX) {
-                        logMessage(`Peak detected for ${TARGET_SENSOR_KEY} at value ${previousFilteredValueAccelX.toFixed(3)}`, 'info');
-                        lastNPeaksTimestamps.push(currentSampleTime - SAMPLING_INTERVAL_MS); // Approx time of actual peak
-                        if (lastNPeaksTimestamps.length > MAX_PEAKS_FOR_FREQUENCY) {
-                            lastNPeaksTimestamps.shift(); // Keep only the last N peaks
-                        }
-                        calculateAndDisplayPeakFrequency();
-                    }
-                }
-
-                // Update trend
-                if (previousFilteredValueAccelX !== null) {
-                    if (currentFiltered > previousFilteredValueAccelX) {
-                        trendAccelX = 'rising';
-                    } else if (currentFiltered < previousFilteredValueAccelX) {
-                        trendAccelX = 'falling';
-                    } // If equal, trend remains the same as previous
-                }
-                previousFilteredValueAccelX = currentFiltered;
+            if (key === TARGET_SENSOR_KEY && allFiltered.length >= 2) { // Need at least two points for comparison
+                const currentFiltered = allFiltered[allFiltered.length - 1];
+                const prevFiltered = allFiltered[allFiltered.length - 2];
+                processAccelXForBreathRate(currentFiltered, prevFiltered, currentSampleTime);
+                previousFilteredValueAccelX = currentFiltered; // Update for the next iteration's "previous"
+            } else if (key === TARGET_SENSOR_KEY && allFiltered.length === 1) {
+                previousFilteredValueAccelX = allFiltered[0];
             }
         }
 
-        function updateChart() { /* ... same as before ... */
+        function updateChart() {
              if (!sensorChart || calibrationState !== 'complete') {
                 return;
             }
             const currentFilteredData = sensorData[TARGET_SENSOR_KEY].filteredForChart;
             const currentLabels = chartLabels.slice(-currentFilteredData.length);
+
             sensorChart.data.labels = currentLabels;
             sensorChart.data.datasets[0].data = currentFilteredData;
             sensorChart.update();
         }
 
         function handleDeviceMotion(event) {
-            const currentTimeForEvent = Date.now(); // Timestamp for this event
+            const currentTimeForEvent = Date.now();
 
-            if (calibrationState === 'pending') { /* ... same as before ... */
+            if (calibrationState === 'pending') {
                 calibrationStartTimestamp = currentTimeForEvent;
                 calibrationState = 'delay';
                 calibrationNotice.classList.remove('hidden');
-                calibrationText.textContent = `Calibration: Delay phase for ${CALIBRATION_DELAY_MS / 1000}s. Keep device still.`;
-                logMessage(`Calibration sequence started. Delay phase (${CALIBRATION_DELAY_MS / 1000}s).`);
+                calibrationText.textContent = `Orient phone for AccelX. Calibration in ${CALIBRATION_DELAY_MS / 1000}s. Keep still.`;
+                logMessage(`Calibration: Delay phase (${CALIBRATION_DELAY_MS / 1000}s).`);
                 return;
             }
 
             const acc = event.accelerationIncludingGravity;
-            const rot = event.rotationRate;
             const incomingRawValues = {
                 accelX: acc ? acc.x || 0 : 0, accelY: acc ? acc.y || 0 : 0, accelZ: acc ? acc.z || 0 : 0,
-                gyroAlpha: rot ? rot.alpha || 0 : 0, gyroBeta: rot ? rot.beta || 0 : 0, gyroGamma: rot ? rot.gamma || 0 : 0,
+                // Gyro data is collected for calibration consistency but not directly used for breath rate
+                gyroAlpha: event.rotationRate ? event.rotationRate.alpha || 0 : 0,
+                gyroBeta:  event.rotationRate ? event.rotationRate.beta || 0 : 0,
+                gyroGamma: event.rotationRate ? event.rotationRate.gamma || 0 : 0,
             };
 
-            if (calibrationState === 'delay') { /* ... same as before ... */
+            if (calibrationState === 'delay') {
                  if (currentTimeForEvent >= calibrationStartTimestamp + CALIBRATION_DELAY_MS) {
                     calibrationState = 'collecting';
                     calibrationStartTimestamp = currentTimeForEvent;
-                    calibrationText.textContent = `Calibration: Collecting sensor data for ${CALIBRATION_DURATION_MS / 1000}s. Keep device still.`;
-                    logMessage(`Calibration delay complete. Collecting data for zeroing (${CALIBRATION_DURATION_MS / 1000}s).`);
+                    calibrationText.textContent = `Calibration: Collecting AccelX data for ${CALIBRATION_DURATION_MS / 1000}s. Keep still.`;
+                    logMessage(`Calibration: Collecting data for zeroing (${CALIBRATION_DURATION_MS / 1000}s).`);
                 } else {
                     const timeLeft = Math.round((calibrationStartTimestamp + CALIBRATION_DELAY_MS - currentTimeForEvent)/1000);
-                    calibrationText.textContent = `Calibration: Delay phase... ${timeLeft}s remaining. Keep still.`;
+                    calibrationText.textContent = `Orient phone for AccelX. Calibration in ${timeLeft}s. Keep still.`;
                     return;
                 }
             }
 
-            if (calibrationState === 'collecting') { /* ... same as before ... */
-                Object.keys(incomingRawValues).forEach(key => {
-                    if (tempCalibrationData[key]) {
-                         tempCalibrationData[key].push(incomingRawValues[key]);
+            if (calibrationState === 'collecting') {
+                Object.keys(incomingRawValues).forEach(calibKey => {
+                    if (tempCalibrationData[calibKey]) {
+                         tempCalibrationData[calibKey].push(incomingRawValues[calibKey]);
                     }
                 });
                 if (currentTimeForEvent >= calibrationStartTimestamp + CALIBRATION_DURATION_MS) {
                     calibrationState = 'complete';
-                    calibrationText.textContent = 'Calibration complete! Plotting Accelerometer X.';
-                    logMessage('Calibration data collection complete. Calculating zero offsets...');
-                    Object.keys(sensorZeroOffsets).forEach(key => {
-                        if (tempCalibrationData[key] && tempCalibrationData[key].length > 0) {
-                            const sum = tempCalibrationData[key].reduce((s, v) => s + v, 0);
-                            sensorZeroOffsets[key] = sum / tempCalibrationData[key].length;
-                            logMessage(`Zero offset for ${key}: ${sensorZeroOffsets[key].toFixed(4)}`);
+                    calibrationText.textContent = 'Calibration complete! Monitoring AccelX for breathing.';
+                    logMessage('Calibration: Data collection complete. Calculating zero offsets...');
+                    Object.keys(sensorZeroOffsets).forEach(calibKey => {
+                        if (tempCalibrationData[calibKey] && tempCalibrationData[calibKey].length > 0) {
+                            const sum = tempCalibrationData[calibKey].reduce((s, v) => s + v, 0);
+                            sensorZeroOffsets[calibKey] = sum / tempCalibrationData[calibKey].length;
+                            logMessage(`Zero offset for ${calibKey}: ${sensorZeroOffsets[calibKey].toFixed(4)}`);
                         } else {
-                            sensorZeroOffsets[key] = 0;
-                            logMessage(`No calibration data for ${key}, offset set to 0.`, 'warn');
+                            sensorZeroOffsets[calibKey] = 0;
+                            logMessage(`No calibration data for ${calibKey}, offset set to 0.`, 'warn');
                         }
-                        if (tempCalibrationData[key]) tempCalibrationData[key] = [];
+                        if (tempCalibrationData[calibKey]) tempCalibrationData[calibKey] = [];
                     });
 
                     logMessage(`Calibration complete. Plotting ${TARGET_SENSOR_KEY}.`);
@@ -337,31 +384,31 @@
                     sensorData[TARGET_SENSOR_KEY].filteredForChart = [];
                     chartLabels = [];
                     lastSampledTime[TARGET_SENSOR_KEY] = 0;
-                    // Reset peak detection and frequency calculation states
+
+                    // Reset breath detection state
                     previousFilteredValueAccelX = null;
-                    trendAccelX = 'flat';
-                    lastNPeaksTimestamps = [];
-                    calculateAndDisplayPeakFrequency(); // Update display to initial state
+                    breathDetectionState = 'LOOKING_FOR_PEAK';
+                    lastPeakTimeAccelX = null;
+                    lastBreathEventTimestamps = [];
+                    calculateAndDisplayBreathingRate();
 
 
                     setTimeout(() => calibrationNotice.classList.add('hidden'), 3000);
                     mainContent.classList.remove('hidden');
                 } else {
                     const timeLeft = Math.round((calibrationStartTimestamp + CALIBRATION_DURATION_MS - currentTimeForEvent)/1000);
-                    calibrationText.textContent = `Calibration: Collecting data... ${timeLeft}s remaining. Keep still.`;
+                    calibrationText.textContent = `Calibration: Collecting AccelX data... ${timeLeft}s remaining. Keep still.`;
                     return;
                 }
             }
 
             if (calibrationState === 'complete') {
-                // Check if it's time to sample TARGET_SENSOR_KEY
                 if (currentTimeForEvent >= (lastSampledTime[TARGET_SENSOR_KEY] || 0) + SAMPLING_INTERVAL_MS) {
                     if (incomingRawValues.hasOwnProperty(TARGET_SENSOR_KEY)) {
-                        const currentSampleTime = currentTimeForEvent; // This is the timestamp for the current sample
+                        const currentSampleTime = currentTimeForEvent;
                         lastSampledTime[TARGET_SENSOR_KEY] = currentSampleTime;
 
                         const zeroAdjustedValue = incomingRawValues[TARGET_SENSOR_KEY] - (sensorZeroOffsets[TARGET_SENSOR_KEY] || 0);
-                        // Pass currentSampleTime for potential use in peak timestamping
                         processSensorDataForChart(TARGET_SENSOR_KEY, zeroAdjustedValue, currentSampleTime);
 
                         const nowLabel = new Date(currentSampleTime).toLocaleTimeString().split(" ")[0];
@@ -375,7 +422,7 @@
             }
         }
 
-        function requestMotionPermission() { /* ... same as before ... */
+        function requestMotionPermission() {
             logMessage('Attempting to request motion sensor permission...');
             if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
                 DeviceMotionEvent.requestPermission()
@@ -387,11 +434,13 @@
                         } else {
                             logMessage('Motion sensor permission denied by user.', 'error');
                             alert('Permission denied. Motion sensor data will not be available.');
+                            breathRateDisplay.textContent = "Breathing Rate: Permission Denied.";
                         }
                     })
                     .catch(error => {
                         logMessage(`Error requesting motion permission: ${error.name} - ${error.message}`, 'error');
                         alert('An error occurred while requesting permission: ' + error.message);
+                        breathRateDisplay.textContent = "Breathing Rate: Permission Error.";
                     });
             } else if (typeof DeviceMotionEvent !== 'undefined') {
                 logMessage('DeviceMotionEvent available (no specific permission needed or already granted).');
@@ -400,16 +449,19 @@
             } else {
                 logMessage('DeviceMotionEvent API not supported on this browser.', 'error');
                 alert('Device Motion API not supported. This app will not work.');
+                breathRateDisplay.textContent = "Breathing Rate: Not Supported.";
             }
         }
 
         window.addEventListener('load', () => {
-            logMessage('App loaded. Grant permission to start calibration for Accelerometer X.');
+            logMessage('App loaded. Grant permission to monitor breathing via Accelerometer X.');
             sensorChart = createChart('sensorChart');
-            logMessage(`Targeting ${TARGET_SENSOR_KEY} with ${SAMPLING_INTERVAL_MS / 1000}s interval and SG filter.`);
-            calculateAndDisplayPeakFrequency(); // Initial display
+            chartTitle.textContent = `Accelerometer X (SG Filtered, ${SAMPLING_INTERVAL_MS / 1000}s Sampling)`;
+            logMessage(`Targeting ${TARGET_SENSOR_KEY} with new Max-Min breath detection logic.`);
+            calculateAndDisplayBreathingRate(); // Initial display
 
-            requestPermissionButton.addEventListener('click', requestMotionPermission);
+            const requestButton = document.getElementById('requestPermissionButton');
+            requestButton.addEventListener('click', requestMotionPermission);
 
             if (window.navigator.standalone === true) {
                 logMessage('Running in PWA mode (iOS).');
