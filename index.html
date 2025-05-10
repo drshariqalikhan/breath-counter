@@ -26,56 +26,33 @@
 
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
-        html, body { /* ... same ... */ width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden; background-color: var(--bg-color); color: var(--text-color-primary); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
-
-        .app-container { /* ... same ... */ display: flex; flex-direction: column; align-items: center; width: 100%; height: 100%; padding: 8px 15px; }
-
-        .app-title-area { /* NEW WRAPPER for title and phase */
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            margin-bottom: clamp(5px, 1vh, 8px);
-            flex-shrink: 0;
-            min-height: 40px; /* Ensure space for two lines */
-        }
-        .app-title {
-            font-size: clamp(1.1em, 3vh, 1.7em);
-            font-weight: 300; color: var(--text-color-primary);
-            letter-spacing: 1.5px;
-        }
-        #breathPhaseDisplay {
-            font-size: clamp(0.8em, 2vh, 1em);
-            font-weight: bold;
-            min-height: 1.2em; /* Reserve space */
-            transition: color 0.3s ease;
-        }
-
-
-        .sliders-area { /* ... same ... */ display: flex; justify-content: space-around; align-items: center; width: 100%; max-width: 480px; margin-bottom: clamp(8px, 2vh, 12px); flex-shrink: 0; }
-        .settings-group { /* ... same ... */ display: flex; flex-direction: column; align-items: center; padding: 0 8px; }
-        .settings-group label { /* ... same ... */ font-size: 0.65em; color: var(--text-color-secondary); margin-bottom: 3px; white-space: nowrap; }
-        .settings-group label span { /* ... same ... */ font-weight: bold; color: var(--text-color-primary); }
-        .settings-group input[type="range"] { /* ... same ... */ width: clamp(80px, 22vw, 140px); height: 18px; margin:0; cursor: pointer; background: transparent; -webkit-appearance: none; appearance: none; }
+        html, body { width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden; background-color: var(--bg-color); color: var(--text-color-primary); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        .app-container { display: flex; flex-direction: column; align-items: center; width: 100%; height: 100%; padding: 8px 15px; }
+        .app-title-area { display: flex; flex-direction: column; align-items: center; margin-bottom: clamp(5px, 1vh, 8px); flex-shrink: 0; min-height: 40px; }
+        .app-title { font-size: clamp(1.1em, 3vh, 1.7em); font-weight: 300; color: var(--text-color-primary); letter-spacing: 1.5px; }
+        #breathPhaseDisplay { font-size: clamp(0.8em, 2vh, 1em); font-weight: bold; min-height: 1.2em; transition: color 0.3s ease; }
+        .sliders-area { display: flex; justify-content: space-around; align-items: center; width: 100%; max-width: 480px; margin-bottom: clamp(8px, 2vh, 12px); flex-shrink: 0; }
+        .settings-group { display: flex; flex-direction: column; align-items: center; padding: 0 8px; }
+        .settings-group label { font-size: 0.65em; color: var(--text-color-secondary); margin-bottom: 3px; white-space: nowrap; }
+        .settings-group label span { font-weight: bold; color: var(--text-color-primary); }
+        .settings-group input[type="range"] { width: clamp(80px, 22vw, 140px); height: 18px; margin:0; cursor: pointer; background: transparent; -webkit-appearance: none; appearance: none; }
         input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 18px; height: 18px; background: var(--slider-thumb-color); border-radius: 50%; margin-top: -6px; }
         input[type=range]::-moz-range-thumb { width: 18px; height: 18px; background: var(--slider-thumb-color); border-radius: 50%; border: none; }
         input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 6px; background: var(--slider-track-color); border-radius: 3px; }
         input[type=range]::-moz-range-track { width: 100%; height: 6px; background: var(--slider-track-color); border-radius: 3px; }
-
-        .main-content-row { /* ... same ... */ display: flex; flex-direction: row; align-items: center; justify-content: space-between; width: 100%; flex-grow: 1; min-height: 100px; }
-        .rate-display-column { /* ... same ... */ display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0 10px; text-align: center; flex-basis: calc(100% / 3 - 20px); max-width: calc(100% / 3 - 10px); flex-shrink: 1;}
-        .rate-display-column.left-rate { /* ... same ... */ align-items: flex-start; }
-        .rate-display-column.right-rate { /* ... same ... */ align-items: flex-end; }
-        #breathRateDisplay, #heartRateDisplay { /* ... same ... */ font-size: clamp(1.4em, 4.5vh, 2.2em); font-weight: bold; line-height: 1.1; }
-        #breathRateDisplay { /* ... same ... */ color: var(--primary-color); }
-        #heartRateDisplay { /* ... same ... */ color: var(--secondary-color); }
-        .rate-label { /* ... same ... */ font-size: clamp(0.6em, 1.8vh, 0.8em); color: var(--text-color-secondary); margin-top: 2px; }
-
-        .chart-column-wrapper { /* ... same ... */ display: flex; justify-content: center; align-items: center; height: 100%; flex-basis: calc(100% / 3 + 20px); max-width: calc(100% / 3 + 40px); min-width: 150px; padding: 0 5px; }
-        #accelChartCanvas { /* ... same ... */ background-color: var(--surface-color); border-radius: 8px; width: 100%; height: 100%; }
-
-        #permissionButtonContainer { /* ... same ... */ position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.75); display: flex; align-items: center; justify-content: center; z-index: 200; }
-        #permissionButton { /* ... same ... */ background-color: var(--primary-color); color: var(--bg-color); border: none; padding: 12px 25px; border-radius: 30px; font-size: clamp(1em, 3.5vh, 1.6em); cursor: pointer; font-weight: bold; }
-        #calibrationNotice { /* ... same ... */ position: fixed; bottom: 8px; left: 50%; transform: translateX(-50%); width: auto; min-width: 150px; text-align:center; background-color: rgba(0,0,0,0.85); padding: 6px 10px; border-radius: 8px; font-size: 0.75em; z-index: 100; }
+        .main-content-row { display: flex; flex-direction: row; align-items: center; justify-content: space-between; width: 100%; flex-grow: 1; min-height: 100px; }
+        .rate-display-column { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0 10px; text-align: center; flex-basis: calc(100% / 3 - 20px); max-width: calc(100% / 3 - 10px); flex-shrink: 1;}
+        .rate-display-column.left-rate { align-items: flex-start; }
+        .rate-display-column.right-rate { align-items: flex-end; }
+        #breathRateDisplay, #heartRateDisplay { font-size: clamp(1.4em, 4.5vh, 2.2em); font-weight: bold; line-height: 1.1; }
+        #breathRateDisplay { color: var(--primary-color); }
+        #heartRateDisplay { color: var(--secondary-color); }
+        .rate-label { font-size: clamp(0.6em, 1.8vh, 0.8em); color: var(--text-color-secondary); margin-top: 2px; }
+        .chart-column-wrapper { display: flex; justify-content: center; align-items: center; height: 100%; flex-basis: calc(100% / 3 + 20px); max-width: calc(100% / 3 + 40px); min-width: 150px; padding: 0 5px; }
+        #accelChartCanvas { background-color: var(--surface-color); border-radius: 8px; width: 100%; height: 100%; }
+        #permissionButtonContainer { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.75); display: flex; align-items: center; justify-content: center; z-index: 200; }
+        #permissionButton { background-color: var(--primary-color); color: var(--bg-color); border: none; padding: 12px 25px; border-radius: 30px; font-size: clamp(1em, 3.5vh, 1.6em); cursor: pointer; font-weight: bold; }
+        #calibrationNotice { position: fixed; bottom: 8px; left: 50%; transform: translateX(-50%); width: auto; min-width: 150px; text-align:center; background-color: rgba(0,0,0,0.85); padding: 6px 10px; border-radius: 8px; font-size: 0.75em; z-index: 100; }
         .hidden { display: none !important; }
     </style>
 </head>
@@ -83,7 +60,7 @@
     <div class="app-container">
         <div class="app-title-area">
             <div class="app-title">RELAX</div>
-            <div id="breathPhaseDisplay"> </div> <!-- Placeholder for Inhale/Exhale -->
+            <div id="breathPhaseDisplay"> </div>
         </div>
 
         <div class="sliders-area">
@@ -142,12 +119,14 @@
         // --- Inhale/Exhale Detection ---
         let currentVisualBreathPhase = 'NONE'; // NONE, INHALING, EXHALING, PEAKED_INHALE
         let lastRawAccelXForPhase = 0;
-        let recentHistoricalMaxRawAccelX = -Infinity; // For raw signal peak tracking
-        const INHALE_DERIVATIVE_THRESHOLD = 0.03; // m/s^2 per sample (0.1s); TUNE THIS
-        const EXHALE_DERIVATIVE_THRESHOLD = -0.03; // m/s^2 per sample (0.1s); TUNE THIS
-        const HISTORICAL_MAX_RESET_THRESHOLD_FACTOR = 0.6; // If signal drops to 60% of peak, reset peak tracking.
+        let recentHistoricalMaxRawAccelX = -Infinity; // Peak of the current inhale
+        let lastVisualTroughValue = 0; // Value at the bottom of the last exhalation
+        let lastVisualCycleAmplitude = 0.1; // Default/initial small amplitude (e.g. MIN_BREATH_AMPLITUDE_THRESHOLD)
+        const INHALE_DERIVATIVE_THRESHOLD = 0.03; 
+        const EXHALE_DERIVATIVE_THRESHOLD = -0.03; 
+        const HISTORICAL_MAX_RESET_THRESHOLD_FACTOR = 0.6; 
+        const INHALE_START_AMPLITUDE_FACTOR = 0.40; // Must cross 40% of last cycle's amplitude from trough
         let phaseDisplayTimeout;
-
 
         // --- DOM Elements ---
         const permissionButtonContainer = document.getElementById('permissionButtonContainer');
@@ -161,10 +140,8 @@
         const heartAmpThresholdSlider = document.getElementById('heartAmpThresholdSlider');
         const heartAmpThresholdValueDisplay = document.getElementById('heartAmpThresholdValue');
         const accelChartCanvas = document.getElementById('accelChartCanvas');
-        const appTitleArea = document.querySelector('.app-title-area'); // Get the wrapper
-        const breathPhaseDisplay = document.getElementById('breathPhaseDisplay'); // The new element
+        const breathPhaseDisplay = document.getElementById('breathPhaseDisplay');
         let accelChart;
-
 
         // --- App State ---
         let sensorData = { [TARGET_SENSOR_KEY]: { raw: [], filteredForChart: [], chartLabels: [] } };
@@ -187,97 +164,171 @@
                     breathPhaseDisplay.textContent = "Exhale";
                     breathPhaseDisplay.style.color = getComputedStyle(document.documentElement).getPropertyValue('--exhale-color').trim();
                     break;
-                default: // NONE or after a timeout
-                    breathPhaseDisplay.textContent = "\u00A0"; // Non-breaking space to maintain height
+                default: 
+                    breathPhaseDisplay.textContent = "\u00A0"; 
                     breathPhaseDisplay.style.color = getComputedStyle(document.documentElement).getPropertyValue('--text-color-secondary').trim();
             }
-             // Clear after a bit if it's not NONE, to avoid persistent display
             if (phase !== 'NONE') {
                  phaseDisplayTimeout = setTimeout(() => {
-                    if (breathPhaseDisplay.textContent !== "\u00A0") { // Only clear if it was set
+                    if (breathPhaseDisplay.textContent !== "\u00A0") {
                         updateBreathPhaseDisplay('NONE');
                     }
-                }, 1500); // Display for 1.5 seconds
+                }, 1500); 
             }
         }
-
 
         function detectVisualBreathPhase(currentRawAccelX, previousRawAccelX) {
             const derivative = currentRawAccelX - previousRawAccelX;
 
             if (currentVisualBreathPhase === 'NONE' || currentVisualBreathPhase === 'EXHALING') {
-                if (derivative > INHALE_DERIVATIVE_THRESHOLD && currentRawAccelX > (recentHistoricalMaxRawAccelX * HISTORICAL_MAX_RESET_THRESHOLD_FACTOR * 0.8) ) { // Start rising significantly
+                if (derivative > INHALE_DERIVATIVE_THRESHOLD &&
+                    currentRawAccelX > (lastVisualTroughValue + (lastVisualCycleAmplitude * INHALE_START_AMPLITUDE_FACTOR))) {
                     currentVisualBreathPhase = 'INHALING';
                     updateBreathPhaseDisplay('INHALING');
-                    recentHistoricalMaxRawAccelX = Math.max(currentRawAccelX, recentHistoricalMaxRawAccelX); // Update peak
+                    recentHistoricalMaxRawAccelX = Math.max(currentRawAccelX, recentHistoricalMaxRawAccelX); 
+                    logMessage(`Visual Inhale Start: Deriv ${derivative.toFixed(3)}, Val ${currentRawAccelX.toFixed(3)}, Thresh Val ${(lastVisualTroughValue + (lastVisualCycleAmplitude * INHALE_START_AMPLITUDE_FACTOR)).toFixed(3)}`, 'info');
                 }
-            } else if (currentVisualBreathPhase === 'INHALING') {
-                if (derivative < 0) { // Peaked
+            } 
+            else if (currentVisualBreathPhase === 'INHALING') {
+                if (derivative < 0) { 
                     currentVisualBreathPhase = 'PEAKED_INHALE';
-                    // Inhalation is considered complete at the peak. Display was already "Inhale".
-                    // No need to change display here, it will timeout or change on exhale start.
-                    recentHistoricalMaxRawAccelX = Math.max(currentRawAccelX, previousRawAccelX, recentHistoricalMaxRawAccelX); // Capture the true peak
-                } else { // Still inhaling or flat
+                    recentHistoricalMaxRawAccelX = Math.max(previousRawAccelX, recentHistoricalMaxRawAccelX); 
+                    logMessage(`Visual Inhale Peak: Val ${previousRawAccelX.toFixed(3)}`, 'info');
+                } else { 
                     recentHistoricalMaxRawAccelX = Math.max(currentRawAccelX, recentHistoricalMaxRawAccelX);
                 }
             }
-
-            if (currentVisualBreathPhase === 'PEAKED_INHALE' || currentVisualBreathPhase === 'INHALING') { // Check for exhalation start from peak or during inhale if it reverses
-                 if (derivative < EXHALE_DERIVATIVE_THRESHOLD) { // Started falling significantly
+            
+            if (currentVisualBreathPhase === 'PEAKED_INHALE' || currentVisualBreathPhase === 'INHALING') {
+                 if (derivative < EXHALE_DERIVATIVE_THRESHOLD) { 
                     currentVisualBreathPhase = 'EXHALING';
                     updateBreathPhaseDisplay('EXHALING');
+                    logMessage(`Visual Exhale Start: Deriv ${derivative.toFixed(3)}`, 'info');
                 }
-            } else if (currentVisualBreathPhase === 'EXHALING') {
-                if (derivative > 0) { // Trough reached, or started inhaling again
-                    currentVisualBreathPhase = 'NONE'; // Reset, wait for next clear inhale
+            } 
+            else if (currentVisualBreathPhase === 'EXHALING') {
+                if (derivative > 0) { 
+                    logMessage(`Visual Exhale Trough: Val ${previousRawAccelX.toFixed(3)}`, 'info');
+                    lastVisualTroughValue = previousRawAccelX; 
+
+                    if (recentHistoricalMaxRawAccelX > -Infinity && lastVisualTroughValue !== null) { 
+                        lastVisualCycleAmplitude = recentHistoricalMaxRawAccelX - lastVisualTroughValue;
+                        if (lastVisualCycleAmplitude <= 0) lastVisualCycleAmplitude = MIN_BREATH_AMPLITUDE_THRESHOLD * 0.5; // Ensure positive, non-zero, smaller than main thresh
+                        logMessage(`Visual Cycle Amp: ${lastVisualCycleAmplitude.toFixed(3)} (Peak: ${recentHistoricalMaxRawAccelX.toFixed(3)}, Trough: ${lastVisualTroughValue.toFixed(3)})`, 'info');
+                    }
+                    currentVisualBreathPhase = 'NONE'; 
                     updateBreathPhaseDisplay('NONE');
-                    recentHistoricalMaxRawAccelX = -Infinity; // Reset historical max for next inhale cycle
+                    recentHistoricalMaxRawAccelX = -Infinity; 
                 }
             }
-            // Reset historical max if current value drops significantly below it, to catch next breath sooner
-            if (currentRawAccelX < recentHistoricalMaxRawAccelX * HISTORICAL_MAX_RESET_THRESHOLD_FACTOR && currentVisualBreathPhase !== 'INHALING') {
-                 recentHistoricalMaxRawAccelX = -Infinity;
+
+            if (currentRawAccelX < (recentHistoricalMaxRawAccelX * HISTORICAL_MAX_RESET_THRESHOLD_FACTOR) &&
+                currentVisualBreathPhase !== 'INHALING' && currentVisualBreathPhase !== 'PEAKED_INHALE') {
+                if (recentHistoricalMaxRawAccelX > -Infinity) {
+                    logMessage(`Resetting recentHistoricalMaxRawAccelX (${recentHistoricalMaxRawAccelX.toFixed(3)}) due to low current value (${currentRawAccelX.toFixed(3)})`, 'warn');
+                    recentHistoricalMaxRawAccelX = -Infinity;
+                }
             }
         }
 
-
-        function createAccelChart() { /* ... (same) ... */ const ctx = accelChartCanvas.getContext('2d'); accelChart = new Chart(ctx, { type: 'line', data: { labels: [], datasets: [{ label: 'Accel X', data: [], borderColor: getComputedStyle(document.documentElement).getPropertyValue('--chart-line-color').trim() || '#2196F3', borderWidth: 1.5, pointRadius: 0, tension: 0.2 }] }, options: { responsive: true, maintainAspectRatio: false, animation: { duration: 0 }, scales: { x: { display: false }, y: { display: true, ticks: { color: getComputedStyle(document.documentElement).getPropertyValue('--text-color-secondary').trim(), font: {size: 8}, padding: 2 }, grid: { color: getComputedStyle(document.documentElement).getPropertyValue('--chart-grid-color').trim(), drawBorder: false }, suggestedMin: -0.5, suggestedMax: 0.5 } }, plugins: { legend: { display: false }, title: { display: false } }, layout: { padding: { top:2, bottom:2, left:2, right:2 } } } }); }
-        function updateAccelChart(filteredValue, timestampLabel) { /* ... (same) ... */ if (!accelChart) return; const dataArray = accelChart.data.datasets[0].data; const labelsArray = accelChart.data.labels; dataArray.push(filteredValue); labelsArray.push(timestampLabel); if (dataArray.length > CHART_MAX_POINTS) { dataArray.shift(); labelsArray.shift(); } accelChart.update('none'); }
-        function calculateAndDisplayBreathingRate() { /* ... (same) ... */ if (lastConfirmedBreathEventTimestamps.length < 2) { breathRateDisplay.textContent = calibrationState === 'complete' ? '--' : '...'; return; } const sortedTimestamps = [...lastConfirmedBreathEventTimestamps].sort((a, b) => a - b); const oldestEventTime = sortedTimestamps[0]; const newestEventTime = sortedTimestamps[sortedTimestamps.length - 1]; const totalDurationSeconds = (newestEventTime - oldestEventTime) / 1000; const numberOfIntervals = sortedTimestamps.length - 1; if (totalDurationSeconds > 0 && numberOfIntervals > 0) { const breathsPerMinute = (numberOfIntervals / totalDurationSeconds) * 60; breathRateDisplay.textContent = `${breathsPerMinute.toFixed(1)}`; } else { breathRateDisplay.textContent = "--"; } }
-        function calculateAndDisplayHeartRate() { /* ... (same) ... */ if (lastConfirmedHeartbeatTimestamps.length < 2) { heartRateDisplay.textContent = calibrationState === 'complete' ? '--' : '...'; return; } const sortedTimestamps = [...lastConfirmedHeartbeatTimestamps].sort((a, b) => a - b); const oldestEventTime = sortedTimestamps[0]; const newestEventTime = sortedTimestamps[sortedTimestamps.length - 1]; const totalDurationSeconds = (newestEventTime - oldestEventTime) / 1000; const numberOfIntervals = sortedTimestamps.length - 1; if (totalDurationSeconds > 0 && numberOfIntervals > 0) { const beatsPerMinute = (numberOfIntervals / totalDurationSeconds) * 60; heartRateDisplay.textContent = `${beatsPerMinute.toFixed(0)}`; } else { heartRateDisplay.textContent = "--"; } }
-        function savitzkyGolaySmooth(data) { /* ... (same) ... */ const windowSize = SG_WINDOW_SIZE; const coeffs = SG_COEFFICIENTS; const denominator = SG_DENOMINATOR; const halfWindow = Math.floor(windowSize / 2); const smoothedData = []; if (data.length === 0) return []; const paddedData = []; for (let i = 0; i < halfWindow; i++) paddedData.push(data[0]); paddedData.push(...data); for (let i = 0; i < halfWindow; i++) paddedData.push(data[data.length - 1]); for (let i = 0; i < data.length; i++) { let sum = 0; for (let j = 0; j < windowSize; j++) sum += coeffs[j] * paddedData[i + j]; smoothedData.push(sum / denominator); } return smoothedData; }
-        function processSignal(currentFiltVal, prevFiltVal, sampleTime) { /* ... (same for breath rate and pulse rate detection) ... */ if (prevFiltVal === null) return; const trendChangedToFalling = currentFiltVal < prevFiltVal; const trendChangedToRising = currentFiltVal > prevFiltVal; const actualPrevTime = sampleTime - SAMPLING_INTERVAL_MS; if (breathCycleState === 'EXPECTING_PEAK' && trendChangedToFalling) { lastDetectedBreathPeak = { value: prevFiltVal, time: actualPrevTime }; breathCycleState = 'EXPECTING_TROUGH'; } else if (breathCycleState === 'EXPECTING_TROUGH' && trendChangedToRising) { lastDetectedBreathTrough = { value: prevFiltVal, time: actualPrevTime }; if (lastDetectedBreathPeak.value !== null) { const amplitude = Math.abs(lastDetectedBreathPeak.value - lastDetectedBreathTrough.value); if (amplitude >= MIN_BREATH_AMPLITUDE_THRESHOLD) { logMessage(`BREATH EVENT: Amp ${amplitude.toFixed(3)}`, 'success'); lastConfirmedBreathEventTimestamps.push(lastDetectedBreathTrough.time); if (lastConfirmedBreathEventTimestamps.length > MAX_BREATH_EVENTS_FOR_RATE) lastConfirmedBreathEventTimestamps.shift(); calculateAndDisplayBreathingRate(); } } breathCycleState = 'EXPECTING_PEAK'; lastDetectedBreathPeak = { value: null, time: null }; lastDetectedBreathTrough = { value: null, time: null }; } if (lookingForHeartbeatPeak && trendChangedToFalling) { if (prevFiltVal > (potentialHeartbeatPeak.value || -Infinity)) { potentialHeartbeatPeak = {value: prevFiltVal, time: actualPrevTime}; } } else if (trendChangedToRising && potentialHeartbeatPeak.value !== null) { const hb_amplitude = Math.abs(potentialHeartbeatPeak.value - prevFiltVal); if (hb_amplitude >= MIN_HEARTBEAT_AMPLITUDE_THRESHOLD) { if (potentialHeartbeatPeak.time - lastHeartbeatPeakTime > MIN_HEARTBEAT_INTERVAL_MS) { logMessage(`PULSE EVENT: Amp ${hb_amplitude.toFixed(4)}`, 'pulse'); lastConfirmedHeartbeatTimestamps.push(potentialHeartbeatPeak.time); if (lastConfirmedHeartbeatTimestamps.length > MAX_HEARTBEAT_EVENTS_FOR_RATE) lastConfirmedHeartbeatTimestamps.shift(); calculateAndDisplayHeartRate(); lastHeartbeatPeakTime = potentialHeartbeatPeak.time; } } potentialHeartbeatPeak = {value: null, time: null}; } if (trendChangedToRising) lookingForHeartbeatPeak = true; if (trendChangedToFalling) lookingForHeartbeatPeak = false; }
-
+        function createAccelChart() { const ctx = accelChartCanvas.getContext('2d'); accelChart = new Chart(ctx, { type: 'line', data: { labels: [], datasets: [{ label: 'Accel X', data: [], borderColor: getComputedStyle(document.documentElement).getPropertyValue('--chart-line-color').trim() || '#2196F3', borderWidth: 1.5, pointRadius: 0, tension: 0.2 }] }, options: { responsive: true, maintainAspectRatio: false, animation: { duration: 0 }, scales: { x: { display: false }, y: { display: true, ticks: { color: getComputedStyle(document.documentElement).getPropertyValue('--text-color-secondary').trim(), font: {size: 8}, padding: 2 }, grid: { color: getComputedStyle(document.documentElement).getPropertyValue('--chart-grid-color').trim(), drawBorder: false }, suggestedMin: -0.5, suggestedMax: 0.5 } }, plugins: { legend: { display: false }, title: { display: false } }, layout: { padding: { top:2, bottom:2, left:2, right:2 } } } }); }
+        function updateAccelChart(filteredValue, timestampLabel) { if (!accelChart) return; const dataArray = accelChart.data.datasets[0].data; const labelsArray = accelChart.data.labels; dataArray.push(filteredValue); labelsArray.push(timestampLabel); if (dataArray.length > CHART_MAX_POINTS) { dataArray.shift(); labelsArray.shift(); } accelChart.update('none'); }
+        function calculateAndDisplayBreathingRate() { if (lastConfirmedBreathEventTimestamps.length < 2) { breathRateDisplay.textContent = calibrationState === 'complete' ? '--' : '...'; return; } const sortedTimestamps = [...lastConfirmedBreathEventTimestamps].sort((a, b) => a - b); const oldestEventTime = sortedTimestamps[0]; const newestEventTime = sortedTimestamps[sortedTimestamps.length - 1]; const totalDurationSeconds = (newestEventTime - oldestEventTime) / 1000; const numberOfIntervals = sortedTimestamps.length - 1; if (totalDurationSeconds > 0 && numberOfIntervals > 0) { const breathsPerMinute = (numberOfIntervals / totalDurationSeconds) * 60; breathRateDisplay.textContent = `${breathsPerMinute.toFixed(1)}`; } else { breathRateDisplay.textContent = "--"; } }
+        function calculateAndDisplayHeartRate() { if (lastConfirmedHeartbeatTimestamps.length < 2) { heartRateDisplay.textContent = calibrationState === 'complete' ? '--' : '...'; return; } const sortedTimestamps = [...lastConfirmedHeartbeatTimestamps].sort((a, b) => a - b); const oldestEventTime = sortedTimestamps[0]; const newestEventTime = sortedTimestamps[sortedTimestamps.length - 1]; const totalDurationSeconds = (newestEventTime - oldestEventTime) / 1000; const numberOfIntervals = sortedTimestamps.length - 1; if (totalDurationSeconds > 0 && numberOfIntervals > 0) { const beatsPerMinute = (numberOfIntervals / totalDurationSeconds) * 60; heartRateDisplay.textContent = `${beatsPerMinute.toFixed(0)}`; } else { heartRateDisplay.textContent = "--"; } }
+        function savitzkyGolaySmooth(data) { const windowSize = SG_WINDOW_SIZE; const coeffs = SG_COEFFICIENTS; const denominator = SG_DENOMINATOR; const halfWindow = Math.floor(windowSize / 2); const smoothedData = []; if (data.length === 0) return []; const paddedData = []; for (let i = 0; i < halfWindow; i++) paddedData.push(data[0]); paddedData.push(...data); for (let i = 0; i < halfWindow; i++) paddedData.push(data[data.length - 1]); for (let i = 0; i < data.length; i++) { let sum = 0; for (let j = 0; j < windowSize; j++) sum += coeffs[j] * paddedData[i + j]; smoothedData.push(sum / denominator); } return smoothedData; }
+        function processSignal(currentFiltVal, prevFiltVal, sampleTime) { if (prevFiltVal === null) return; const trendChangedToFalling = currentFiltVal < prevFiltVal; const trendChangedToRising = currentFiltVal > prevFiltVal; const actualPrevTime = sampleTime - SAMPLING_INTERVAL_MS; if (breathCycleState === 'EXPECTING_PEAK' && trendChangedToFalling) { lastDetectedBreathPeak = { value: prevFiltVal, time: actualPrevTime }; breathCycleState = 'EXPECTING_TROUGH'; } else if (breathCycleState === 'EXPECTING_TROUGH' && trendChangedToRising) { lastDetectedBreathTrough = { value: prevFiltVal, time: actualPrevTime }; if (lastDetectedBreathPeak.value !== null) { const amplitude = Math.abs(lastDetectedBreathPeak.value - lastDetectedBreathTrough.value); if (amplitude >= MIN_BREATH_AMPLITUDE_THRESHOLD) { logMessage(`BREATH EVENT: Amp ${amplitude.toFixed(3)}`, 'success'); lastConfirmedBreathEventTimestamps.push(lastDetectedBreathTrough.time); if (lastConfirmedBreathEventTimestamps.length > MAX_BREATH_EVENTS_FOR_RATE) lastConfirmedBreathEventTimestamps.shift(); calculateAndDisplayBreathingRate(); } } breathCycleState = 'EXPECTING_PEAK'; lastDetectedBreathPeak = { value: null, time: null }; lastDetectedBreathTrough = { value: null, time: null }; } if (lookingForHeartbeatPeak && trendChangedToFalling) { if (prevFiltVal > (potentialHeartbeatPeak.value || -Infinity)) { potentialHeartbeatPeak = {value: prevFiltVal, time: actualPrevTime}; } } else if (trendChangedToRising && potentialHeartbeatPeak.value !== null) { const hb_amplitude = Math.abs(potentialHeartbeatPeak.value - prevFiltVal); if (hb_amplitude >= MIN_HEARTBEAT_AMPLITUDE_THRESHOLD) { if (potentialHeartbeatPeak.time - lastHeartbeatPeakTime > MIN_HEARTBEAT_INTERVAL_MS) { logMessage(`PULSE EVENT: Amp ${hb_amplitude.toFixed(4)}`, 'pulse'); lastConfirmedHeartbeatTimestamps.push(potentialHeartbeatPeak.time); if (lastConfirmedHeartbeatTimestamps.length > MAX_HEARTBEAT_EVENTS_FOR_RATE) lastConfirmedHeartbeatTimestamps.shift(); calculateAndDisplayHeartRate(); lastHeartbeatPeakTime = potentialHeartbeatPeak.time; } } potentialHeartbeatPeak = {value: null, time: null}; } if (trendChangedToRising) lookingForHeartbeatPeak = true; if (trendChangedToFalling) lookingForHeartbeatPeak = false; }
 
         function processSensorData(key, zeroAdjustedValue, currentSampleTime) {
-            // Visual breath phase detection uses raw zero-adjusted value for responsiveness
-            if (lastRawAccelXForPhase !== null) { // Check if it's not the very first data point
-                 detectVisualBreathPhase(zeroAdjustedValue, lastRawAccelXForPhase);
+            if (calibrationState === 'complete') { // Only process visual phase after calibration
+                if (lastRawAccelXForPhase !== null || sensorData[key].raw.length > 0) { // Ensure there's a previous value
+                     detectVisualBreathPhase(zeroAdjustedValue, lastRawAccelXForPhase);
+                }
             }
             lastRawAccelXForPhase = zeroAdjustedValue;
 
-            const dataObj = sensorData[key]; dataObj.raw.push(zeroAdjustedValue);
+            const dataObj = sensorData[key]; dataObj.raw.push(zeroAdjustedValue); 
             if (dataObj.raw.length > MAX_RAW_DATA_STORAGE) dataObj.raw.shift();
             
-            const allFiltered = savitzkyGolaySmooth(dataObj.raw);
+            const allFiltered = savitzkyGolaySmooth(dataObj.raw); 
             const latestFilteredValue = allFiltered.length > 0 ? allFiltered[allFiltered.length - 1] : 0;
             updateAccelChart(latestFilteredValue, new Date(currentSampleTime).toLocaleTimeString().substring(0,8));
 
-            // Rate calculations use filtered data
-            if (key === TARGET_SENSOR_KEY && allFiltered.length >= 2) {
-                const currentFiltered = allFiltered[allFiltered.length - 1];
-                const prevFiltered = allFiltered[allFiltered.length - 2];
-                processSignal(currentFiltered, prevFiltered, currentSampleTime); // This is for numeric rate calculation
-                previousFilteredValueAccelX = currentFiltered;
-            } else if (key === TARGET_SENSOR_KEY && allFiltered.length === 1) {
-                previousFilteredValueAccelX = allFiltered[0];
+            if (key === TARGET_SENSOR_KEY && allFiltered.length >= 2) { 
+                const currentFiltered = allFiltered[allFiltered.length - 1]; 
+                const prevFiltered = allFiltered[allFiltered.length - 2]; 
+                processSignal(currentFiltered, prevFiltered, currentSampleTime); 
+                previousFilteredValueAccelX = currentFiltered; 
+            } else if (key === TARGET_SENSOR_KEY && allFiltered.length === 1) { 
+                previousFilteredValueAccelX = allFiltered[0]; 
             }
         }
-        function handleDeviceMotion(event) { /* ... (same) ... */ const currentTimeForEvent = Date.now(); if (calibrationState === 'pending') { calibrationStartTimestamp = currentTimeForEvent; calibrationState = 'delay'; calibrationNotice.classList.remove('hidden'); calibrationText.textContent = `Calibrating... (${CALIBRATION_DELAY_MS / 1000}s)`; return; } const acc = event.accelerationIncludingGravity; const incomingRawValues = { accelX: acc ? acc.x || 0 : 0, accelY: acc ? acc.y || 0 : 0, accelZ: acc ? acc.z || 0 : 0, gyroAlpha: event.rotationRate ? event.rotationRate.alpha || 0 : 0, gyroBeta:  event.rotationRate ? event.rotationRate.beta || 0 : 0, gyroGamma: event.rotationRate ? event.rotationRate.gamma || 0 : 0, }; if (calibrationState === 'delay') { if (currentTimeForEvent >= calibrationStartTimestamp + CALIBRATION_DELAY_MS) { calibrationState = 'collecting'; calibrationStartTimestamp = currentTimeForEvent; calibrationText.textContent = `Collecting Data...(${CALIBRATION_DURATION_MS / 1000}s)`; } else { const timeLeft = Math.round((calibrationStartTimestamp + CALIBRATION_DELAY_MS - currentTimeForEvent)/1000); calibrationText.textContent = `Calibrating... ${timeLeft}s`; return; } } if (calibrationState === 'collecting') { Object.keys(incomingRawValues).forEach(calibKey => { if (tempCalibrationData[calibKey]) tempCalibrationData[calibKey].push(incomingRawValues[calibKey]); }); if (currentTimeForEvent >= calibrationStartTimestamp + CALIBRATION_DURATION_MS) { calibrationState = 'complete'; calibrationText.textContent = 'Ready'; Object.keys(sensorZeroOffsets).forEach(calibKey => { if (tempCalibrationData[calibKey] && tempCalibrationData[calibKey].length > 0) { const sum = tempCalibrationData[calibKey].reduce((s, v) => s + v, 0); sensorZeroOffsets[calibKey] = sum / tempCalibrationData[calibKey].length; } else { sensorZeroOffsets[calibKey] = 0; } if (tempCalibrationData[calibKey]) tempCalibrationData[calibKey] = []; }); sensorData[TARGET_SENSOR_KEY].raw = []; previousFilteredValueAccelX = null; breathCycleState = 'EXPECTING_PEAK'; lastConfirmedBreathEventTimestamps = []; lastConfirmedHeartbeatTimestamps = []; if(accelChart) { accelChart.data.labels = []; accelChart.data.datasets[0].data = []; accelChart.update('none');} calculateAndDisplayBreathingRate(); calculateAndDisplayHeartRate(); lastRawAccelXForPhase = 0; recentHistoricalMaxRawAccelX = -Infinity; currentVisualBreathPhase = 'NONE'; updateBreathPhaseDisplay('NONE'); setTimeout(() => calibrationNotice.classList.add('hidden'), 1500); } else { const timeLeft = Math.round((calibrationStartTimestamp + CALIBRATION_DURATION_MS - currentTimeForEvent)/1000); calibrationText.textContent = `Collecting Data... ${timeLeft}s`; return; } } if (calibrationState === 'complete') { if (currentTimeForEvent >= (lastSampledTime[TARGET_SENSOR_KEY] || 0) + SAMPLING_INTERVAL_MS) { if (incomingRawValues.hasOwnProperty(TARGET_SENSOR_KEY)) { const currentSampleTime = currentTimeForEvent; lastSampledTime[TARGET_SENSOR_KEY] = currentSampleTime; const zeroAdjustedValue = incomingRawValues[TARGET_SENSOR_KEY] - (sensorZeroOffsets[TARGET_SENSOR_KEY] || 0); processSensorData(TARGET_SENSOR_KEY, zeroAdjustedValue, currentSampleTime); } } } }
-        async function requestAndLockOrientation() { /* ... (same) ... */ try { if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') { const permission = await DeviceMotionEvent.requestPermission(); if (permission !== 'granted') { logMessage('Motion permission denied.', 'error'); permissionButton.textContent = "Permission Denied"; return false; } } else if (typeof DeviceMotionEvent === 'undefined') { logMessage('DeviceMotionEvent API not supported.', 'error'); permissionButton.textContent = "Not Supported"; return false; } logMessage('Motion permission granted.', 'success'); if (screen.orientation && typeof screen.orientation.lock === 'function') { await screen.orientation.lock('landscape-primary'); logMessage('Screen locked to landscape.', 'info'); } else { logMessage('Screen Orientation API not fully supported for locking.', 'warn'); } return true; } catch (err) { logMessage(`Error during permission/lock: ${err.message}`, 'error'); permissionButton.textContent = "Error"; return false; } }
+        function handleDeviceMotion(event) {
+            const currentTimeForEvent = Date.now(); 
+            if (calibrationState === 'pending') { 
+                calibrationStartTimestamp = currentTimeForEvent; calibrationState = 'delay'; 
+                calibrationNotice.classList.remove('hidden'); 
+                calibrationText.textContent = `Calibrating... (${CALIBRATION_DELAY_MS / 1000}s)`; return; 
+            } 
+            const acc = event.accelerationIncludingGravity; 
+            const incomingRawValues = { accelX: acc ? acc.x || 0 : 0, accelY: acc ? acc.y || 0 : 0, accelZ: acc ? acc.z || 0 : 0, gyroAlpha: event.rotationRate ? event.rotationRate.alpha || 0 : 0, gyroBeta:  event.rotationRate ? event.rotationRate.beta || 0 : 0, gyroGamma: event.rotationRate ? event.rotationRate.gamma || 0 : 0, }; 
+            
+            if (calibrationState === 'delay') { 
+                if (currentTimeForEvent >= calibrationStartTimestamp + CALIBRATION_DELAY_MS) { 
+                    calibrationState = 'collecting'; calibrationStartTimestamp = currentTimeForEvent; 
+                    calibrationText.textContent = `Collecting Data...(${CALIBRATION_DURATION_MS / 1000}s)`; 
+                } else { 
+                    const timeLeft = Math.round((calibrationStartTimestamp + CALIBRATION_DELAY_MS - currentTimeForEvent)/1000); 
+                    calibrationText.textContent = `Calibrating... ${timeLeft}s`; return; 
+                } 
+            } 
+            
+            if (calibrationState === 'collecting') { 
+                Object.keys(incomingRawValues).forEach(calibKey => { if (tempCalibrationData[calibKey]) tempCalibrationData[calibKey].push(incomingRawValues[calibKey]); }); 
+                if (currentTimeForEvent >= calibrationStartTimestamp + CALIBRATION_DURATION_MS) { 
+                    calibrationState = 'complete'; calibrationText.textContent = 'Ready'; 
+                    Object.keys(sensorZeroOffsets).forEach(calibKey => { 
+                        if (tempCalibrationData[calibKey] && tempCalibrationData[calibKey].length > 0) { 
+                            const sum = tempCalibrationData[calibKey].reduce((s, v) => s + v, 0); 
+                            sensorZeroOffsets[calibKey] = sum / tempCalibrationData[calibKey].length; 
+                        } else { sensorZeroOffsets[calibKey] = 0; } 
+                        if (tempCalibrationData[calibKey]) tempCalibrationData[calibKey] = []; 
+                    }); 
+                    sensorData[TARGET_SENSOR_KEY].raw = []; previousFilteredValueAccelX = null; 
+                    breathCycleState = 'EXPECTING_PEAK'; 
+                    lastConfirmedBreathEventTimestamps = []; lastConfirmedHeartbeatTimestamps = []; 
+                    if(accelChart) { accelChart.data.labels = []; accelChart.data.datasets[0].data = []; accelChart.update('none');} 
+                    calculateAndDisplayBreathingRate(); calculateAndDisplayHeartRate(); 
+                    
+                    // Initialize visual phase variables after calibration
+                    lastRawAccelXForPhase = sensorZeroOffsets[TARGET_SENSOR_KEY] || 0;
+                    recentHistoricalMaxRawAccelX = -Infinity;
+                    lastVisualTroughValue = sensorZeroOffsets[TARGET_SENSOR_KEY] || 0;
+                    lastVisualCycleAmplitude = MIN_BREATH_AMPLITUDE_THRESHOLD * 0.5; // Start with a smaller default
+                    currentVisualBreathPhase = 'NONE';
+                    updateBreathPhaseDisplay('NONE');
 
-        permissionButton.addEventListener('click', async () => { /* ... (same) ... */ const permissionGranted = await requestAndLockOrientation(); if (permissionGranted) { permissionButtonContainer.classList.add('hidden'); createAccelChart(); window.addEventListener('devicemotion', handleDeviceMotion, true); if(calibrationState === 'pending') calibrationNotice.classList.remove('hidden'); } });
-        window.addEventListener('load', () => { /* ... (same slider setup, ensure default values are correct) ... */
+                    setTimeout(() => calibrationNotice.classList.add('hidden'), 1500); 
+                } else { 
+                    const timeLeft = Math.round((calibrationStartTimestamp + CALIBRATION_DURATION_MS - currentTimeForEvent)/1000); 
+                    calibrationText.textContent = `Collecting Data... ${timeLeft}s`; return; 
+                } 
+            } 
+            
+            if (calibrationState === 'complete') { 
+                if (currentTimeForEvent >= (lastSampledTime[TARGET_SENSOR_KEY] || 0) + SAMPLING_INTERVAL_MS) { 
+                    if (incomingRawValues.hasOwnProperty(TARGET_SENSOR_KEY)) { 
+                        const currentSampleTime = currentTimeForEvent; 
+                        lastSampledTime[TARGET_SENSOR_KEY] = currentSampleTime; 
+                        const zeroAdjustedValue = incomingRawValues[TARGET_SENSOR_KEY] - (sensorZeroOffsets[TARGET_SENSOR_KEY] || 0); 
+                        processSensorData(TARGET_SENSOR_KEY, zeroAdjustedValue, currentSampleTime); 
+                    } 
+                } 
+            }
+        }
+        async function requestAndLockOrientation() { try { if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') { const permission = await DeviceMotionEvent.requestPermission(); if (permission !== 'granted') { logMessage('Motion permission denied.', 'error'); permissionButton.textContent = "Permission Denied"; return false; } } else if (typeof DeviceMotionEvent === 'undefined') { logMessage('DeviceMotionEvent API not supported.', 'error'); permissionButton.textContent = "Not Supported"; return false; } logMessage('Motion permission granted.', 'success'); if (screen.orientation && typeof screen.orientation.lock === 'function') { await screen.orientation.lock('landscape-primary'); logMessage('Screen locked to landscape.', 'info'); } else { logMessage('Screen Orientation API not fully supported for locking.', 'warn'); } return true; } catch (err) { logMessage(`Error during permission/lock: ${err.message}`, 'error'); permissionButton.textContent = "Error"; return false; } }
+
+        permissionButton.addEventListener('click', async () => { const permissionGranted = await requestAndLockOrientation(); if (permissionGranted) { permissionButtonContainer.classList.add('hidden'); createAccelChart(); window.addEventListener('devicemotion', handleDeviceMotion, true); if(calibrationState === 'pending') calibrationNotice.classList.remove('hidden'); } });
+        window.addEventListener('load', () => {
             logMessage('App loaded. Tap Start Session.');
             breathAmpThresholdSlider.value = MIN_BREATH_AMPLITUDE_THRESHOLD; breathAmpThresholdValueDisplay.textContent = MIN_BREATH_AMPLITUDE_THRESHOLD.toFixed(2);
             breathAmpThresholdSlider.addEventListener('input', (event) => { MIN_BREATH_AMPLITUDE_THRESHOLD = parseFloat(event.target.value); breathAmpThresholdValueDisplay.textContent = MIN_BREATH_AMPLITUDE_THRESHOLD.toFixed(2); });
@@ -288,7 +339,14 @@
             heartAmpThresholdSlider.addEventListener('input', (event) => { MIN_HEARTBEAT_AMPLITUDE_THRESHOLD = parseFloat(event.target.value); heartAmpThresholdValueDisplay.textContent = MIN_HEARTBEAT_AMPLITUDE_THRESHOLD.toFixed(3); });
             heartAmpThresholdSlider.addEventListener('change', () => { logMessage(`Pulse Amp Thresh: ${MIN_HEARTBEAT_AMPLITUDE_THRESHOLD.toFixed(3)}`); lastConfirmedHeartbeatTimestamps = []; calculateAndDisplayHeartRate(); });
             
-            calculateAndDisplayBreathingRate(); calculateAndDisplayHeartRate(); updateBreathPhaseDisplay('NONE'); // Initial state
+            calculateAndDisplayBreathingRate(); calculateAndDisplayHeartRate();
+            // Initialize visual phase variables on load
+            lastRawAccelXForPhase = 0;
+            recentHistoricalMaxRawAccelX = -Infinity;
+            lastVisualTroughValue = 0; 
+            lastVisualCycleAmplitude = MIN_BREATH_AMPLITUDE_THRESHOLD * 0.5; // Sensible default
+            currentVisualBreathPhase = 'NONE';
+            updateBreathPhaseDisplay('NONE'); 
         });
         window.addEventListener('resize', () => { if (accelChart) accelChart.resize(); });
 
