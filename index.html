@@ -32,79 +32,92 @@
 
         .app-container {
             display: flex; flex-direction: column; align-items: center;
-            width: 100%; height: 100%; padding: 8px 15px; /* Reduced top/bottom padding */
+            width: 100%; height: 100%; padding: 8px 15px;
         }
 
         .app-title {
-            font-size: clamp(1.1em, 3vh, 1.7em); /* Adjusted */
+            font-size: clamp(1.1em, 3vh, 1.7em);
             font-weight: 300; color: var(--text-color-primary);
-            margin-bottom: clamp(5px, 1vh, 8px); /* Adjusted */
+            margin-bottom: clamp(5px, 1vh, 8px);
             letter-spacing: 1.5px; flex-shrink: 0;
         }
 
         .sliders-area {
             display: flex; justify-content: space-around; align-items: center;
-            width: 100%; max-width: 480px; /* Slightly reduced max-width */
-            margin-bottom: clamp(8px, 1.5vh, 12px); /* Adjusted */
+            width: 100%; max-width: 480px;
+            margin-bottom: clamp(8px, 2vh, 12px); /* Increased space before main content row */
             flex-shrink: 0;
         }
-
-        .settings-group {
-            display: flex; flex-direction: column; align-items: center; padding: 0 8px;
-        }
-        .settings-group label {
-            font-size: 0.65em; /* Adjusted */
-            color: var(--text-color-secondary); margin-bottom: 3px; white-space: nowrap;
-        }
+        .settings-group { display: flex; flex-direction: column; align-items: center; padding: 0 8px; }
+        .settings-group label { font-size: 0.65em; color: var(--text-color-secondary); margin-bottom: 3px; white-space: nowrap; }
         .settings-group label span { font-weight: bold; color: var(--text-color-primary); }
-        .settings-group input[type="range"] {
-            width: clamp(80px, 22vw, 140px); /* Adjusted */
-            height: 18px; margin:0; cursor: pointer; background: transparent;
-            -webkit-appearance: none; appearance: none;
-        }
+        .settings-group input[type="range"] { width: clamp(80px, 22vw, 140px); height: 18px; margin:0; cursor: pointer; background: transparent; -webkit-appearance: none; appearance: none; }
         input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 18px; height: 18px; background: var(--slider-thumb-color); border-radius: 50%; margin-top: -6px; }
         input[type=range]::-moz-range-thumb { width: 18px; height: 18px; background: var(--slider-thumb-color); border-radius: 50%; border: none; }
         input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 6px; background: var(--slider-track-color); border-radius: 3px; }
         input[type=range]::-moz-range-track { width: 100%; height: 6px; background: var(--slider-track-color); border-radius: 3px; }
 
-
-        .chart-area-wrapper {
+        .main-content-row {
+            display: flex;
+            flex-direction: row;
+            align-items: center; /* Vertically center chart and rate displays */
+            justify-content: space-between; /* Distribute space */
             width: 100%;
-            height: clamp(100px, 35vh, 200px); /* KEY CHANGE: Reduced chart height */
-            /* max-height: 40vh; /* Reduced max height */
-            display: flex; justify-content: center; align-items: center;
-            margin-bottom: clamp(8px, 1.5vh, 12px); /* Adjusted */
-            flex-shrink: 0;
-        }
-        #accelChartCanvas {
-            background-color: var(--surface-color); border-radius: 8px;
-            width: 100%; height: 100%;
+            flex-grow: 1; /* This row takes remaining vertical space */
+            min-height: 100px; /* Ensure it has some height */
         }
 
-
-        .rates-display-area {
-            display: flex; justify-content: space-around; align-items: center;
-            width: 100%; max-width: 450px; /* Slightly increased max-width */
-            padding: 5px 0; flex-shrink: 0; font-weight: bold;
+        .rate-display-column {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 0 10px;
+            text-align: center;
+            flex-basis: calc(100% / 3 - 20px); /* Try to give each column roughly 1/3, accounting for gap */
+            max-width: calc(100% / 3 - 10px); /* Max width constraint */
+            flex-shrink: 1; /* Allow shrinking if needed */
         }
+        .rate-display-column.left-rate { align-items: flex-start; } /* Align text to start for left */
+        .rate-display-column.right-rate { align-items: flex-end; } /* Align text to end for right */
+
+
         #breathRateDisplay, #heartRateDisplay {
-            font-size: clamp(1.2em, 3.8vh, 1.8em); /* KEY CHANGE: Increased font size */
-            padding: 5px 10px; border-radius: 6px; background-color: var(--surface-color);
+            font-size: clamp(1.4em, 4.5vh, 2.2em); /* Larger font for rates */
+            font-weight: bold;
+            line-height: 1.1;
+            /* background-color: var(--surface-color); /* Optional background for rates */
+            /* padding: 8px 12px; */
+            /* border-radius: 8px; */
         }
         #breathRateDisplay { color: var(--primary-color); }
         #heartRateDisplay { color: var(--secondary-color); }
-
-        #permissionButtonContainer {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background-color: rgba(0,0,0,0.75); display: flex;
-            align-items: center; justify-content: center; z-index: 200;
-        }
-        #permissionButton {
-            background-color: var(--primary-color); color: var(--bg-color); border: none;
-            padding: 12px 25px; border-radius: 30px;
-            font-size: clamp(1em, 3.5vh, 1.6em); cursor: pointer; font-weight: bold;
+        .rate-label { /* Small "BPM" label */
+            font-size: clamp(0.6em, 1.8vh, 0.8em);
+            color: var(--text-color-secondary);
+            margin-top: 2px;
         }
 
+
+        .chart-column-wrapper {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100%; /* Take full height of the main-content-row */
+            flex-basis: calc(100% / 3 + 20px); /* Middle column takes a bit more, adjust as needed */
+            max-width: calc(100% / 3 + 40px); /* Max width constraint */
+            min-width: 150px; /* Ensure chart has min width */
+            padding: 0 5px; /* Small horizontal padding */
+        }
+        #accelChartCanvas {
+            background-color: var(--surface-color);
+            border-radius: 8px;
+            width: 100%;
+            height: 100%;
+        }
+
+        #permissionButtonContainer { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.75); display: flex; align-items: center; justify-content: center; z-index: 200; }
+        #permissionButton { background-color: var(--primary-color); color: var(--bg-color); border: none; padding: 12px 25px; border-radius: 30px; font-size: clamp(1em, 3.5vh, 1.6em); cursor: pointer; font-weight: bold; }
         #calibrationNotice { position: fixed; bottom: 8px; left: 50%; transform: translateX(-50%); width: auto; min-width: 150px; text-align:center; background-color: rgba(0,0,0,0.85); padding: 6px 10px; border-radius: 8px; font-size: 0.75em; z-index: 100; }
         .hidden { display: none !important; }
     </style>
@@ -115,23 +128,33 @@
 
         <div class="sliders-area">
             <div class="settings-group">
-                <label for="breathAmpThresholdSlider">Breath Amp (<span id="breathAmpThresholdValue">0.10</span>)</label> <!-- Updated default display -->
-                <input type="range" id="breathAmpThresholdSlider" min="0.01" max="1.0" step="0.01" value="0.10"> <!-- Updated default value -->
+                <label for="breathAmpThresholdSlider">Breath Amp (<span id="breathAmpThresholdValue">0.10</span>)</label>
+                <input type="range" id="breathAmpThresholdSlider" min="0.01" max="1.0" step="0.01" value="0.10">
             </div>
             <div class="settings-group">
-                <label for="heartAmpThresholdSlider">Pulse Amp (<span id="heartAmpThresholdValue">0.010</span>)</label> <!-- Updated default display -->
-                 <input type="range" id="heartAmpThresholdSlider" min="0.002" max="0.1" step="0.001" value="0.010"> <!-- Updated default value & range -->
+                <label for="heartAmpThresholdSlider">Pulse Amp (<span id="heartAmpThresholdValue">0.010</span>)</label>
+                 <input type="range" id="heartAmpThresholdSlider" min="0.001" max="0.05" step="0.001" value="0.010"> <!-- Adjusted range -->
             </div>
         </div>
 
-        <div class="chart-area-wrapper">
-            <canvas id="accelChartCanvas"></canvas>
+        <div class="main-content-row">
+            <div class="rate-display-column left-rate">
+                <div>
+                    <div id="breathRateDisplay">--</div>
+                    <div class="rate-label">Breath BPM</div>
+                </div>
+            </div>
+            <div class="chart-column-wrapper">
+                <canvas id="accelChartCanvas"></canvas>
+            </div>
+            <div class="rate-display-column right-rate">
+                 <div>
+                    <div id="heartRateDisplay">--</div>
+                    <div class="rate-label">Pulse BPM</div>
+                </div>
+            </div>
         </div>
 
-        <div class="rates-display-area">
-            <div id="breathRateDisplay">Breath: -- BPM</div>
-            <div id="heartRateDisplay">Pulse: -- BPM</div>
-        </div>
 
         <div id="permissionButtonContainer">
              <button id="permissionButton">Start Session</button>
@@ -144,26 +167,21 @@
 
     <script>
         // --- Constants & Global Vars ---
-        const CHART_MAX_POINTS = 100; // Reduced for less dense chart if needed
+        const CHART_MAX_POINTS = 100;
         const SAMPLING_INTERVAL_MS = 100;
         const SG_WINDOW_SIZE = 5; const SG_COEFFICIENTS = [-3, 12, 17, 12, -3]; const SG_DENOMINATOR = 35;
         const MAX_RAW_DATA_STORAGE = CHART_MAX_POINTS * 2;
         const CALIBRATION_DELAY_MS = 2000; const CALIBRATION_DURATION_MS = 5000;
         const TARGET_SENSOR_KEY = 'accelX';
-        
-        let MIN_BREATH_AMPLITUDE_THRESHOLD = 0.10; // NEW DEFAULT
-        const MAX_BREATH_EVENTS_FOR_RATE = 5;
+        let MIN_BREATH_AMPLITUDE_THRESHOLD = 0.10; const MAX_BREATH_EVENTS_FOR_RATE = 5;
         let lastConfirmedBreathEventTimestamps = []; let breathCycleState = 'EXPECTING_PEAK';
         let lastDetectedBreathPeak = { value: null, time: null }; let lastDetectedBreathTrough = { value: null, time: null };
-        
-        let MIN_HEARTBEAT_AMPLITUDE_THRESHOLD = 0.010; // NEW DEFAULT
-        const MAX_HEARTBEAT_EVENTS_FOR_RATE = 8;
-        const MIN_HEARTBEAT_INTERVAL_MS = 300; // Approx max 200 BPM
-        let lastConfirmedHeartbeatTimestamps = [];
+        let MIN_HEARTBEAT_AMPLITUDE_THRESHOLD = 0.010; const MAX_HEARTBEAT_EVENTS_FOR_RATE = 8;
+        const MIN_HEARTBEAT_INTERVAL_MS = 300; let lastConfirmedHeartbeatTimestamps = [];
         let lastHeartbeatPeakTime = 0; let potentialHeartbeatPeak = {value: null, time: null};
         let lookingForHeartbeatPeak = true; let previousFilteredValueAccelX = null;
 
-        // --- DOM Elements (same) ---
+        // --- DOM Elements ---
         const permissionButtonContainer = document.getElementById('permissionButtonContainer');
         const permissionButton = document.getElementById('permissionButton');
         const breathRateDisplay = document.getElementById('breathRateDisplay');
@@ -177,14 +195,14 @@
         const accelChartCanvas = document.getElementById('accelChartCanvas');
         let accelChart;
 
-        // --- App State (same) ---
+        // --- App State ---
         let sensorData = { [TARGET_SENSOR_KEY]: { raw: [], filteredForChart: [], chartLabels: [] } };
         let calibrationState = 'pending'; let calibrationStartTimestamp;
         let tempCalibrationData = { accelX: [], accelY: [], accelZ: [], gyroAlpha: [], gyroBeta: [], gyroGamma: [] };
         let sensorZeroOffsets = { accelX: 0, accelY: 0, accelZ: 0, gyroAlpha: 0, gyroBeta: 0, gyroGamma: 0 };
         let lastSampledTime = { [TARGET_SENSOR_KEY]: 0 };
 
-        // --- Functions (JS logic for sensor processing, rate calculation, etc., is unchanged) ---
+        // --- Functions ---
         function logMessage(message, type = 'info') { console.log(`[${type.toUpperCase()}] ${new Date().toLocaleTimeString()}: ${message}`); }
 
         function createAccelChart() {
@@ -195,20 +213,21 @@
                     responsive: true, maintainAspectRatio: false, animation: { duration: 0 },
                     scales: {
                         x: { display: false },
-                        y: { display: true, ticks: { color: getComputedStyle(document.documentElement).getPropertyValue('--text-color-secondary').trim(), font: {size: 8}, padding: 3 }, grid: { color: getComputedStyle(document.documentElement).getPropertyValue('--chart-grid-color').trim() }, suggestedMin: -0.5, suggestedMax: 0.5 } // Adjusted Y-axis range for smaller expected amplitudes
+                        y: { display: true, ticks: { color: getComputedStyle(document.documentElement).getPropertyValue('--text-color-secondary').trim(), font: {size: 8}, padding: 2 }, grid: { color: getComputedStyle(document.documentElement).getPropertyValue('--chart-grid-color').trim(), drawBorder: false }, suggestedMin: -0.5, suggestedMax: 0.5 }
                     },
                     plugins: {
                         legend: { display: false },
-                        title: { display: true, text: 'Accelerometer X (m/s²)', color: getComputedStyle(document.documentElement).getPropertyValue('--text-color-secondary').trim(), font: {size: 9, weight: 'normal'}, padding: {top:0, bottom:3} }
-                    }
+                        title: { display: false } // Title removed from chart itself, as main title is present
+                    },
+                    layout: { padding: { top:2, bottom:2, left:2, right:2 } } // Minimal padding
                 }
             });
         }
         function updateAccelChart(filteredValue, timestampLabel) {
             if (!accelChart) return; const dataArray = accelChart.data.datasets[0].data; const labelsArray = accelChart.data.labels; dataArray.push(filteredValue); labelsArray.push(timestampLabel); if (dataArray.length > CHART_MAX_POINTS) { dataArray.shift(); labelsArray.shift(); } accelChart.update('none');
         }
-        function calculateAndDisplayBreathingRate() { if (lastConfirmedBreathEventTimestamps.length < 2) { breathRateDisplay.textContent = calibrationState === 'complete' ? 'Breath: -- BPM' : 'Breath: ...'; return; } const sortedTimestamps = [...lastConfirmedBreathEventTimestamps].sort((a, b) => a - b); const oldestEventTime = sortedTimestamps[0]; const newestEventTime = sortedTimestamps[sortedTimestamps.length - 1]; const totalDurationSeconds = (newestEventTime - oldestEventTime) / 1000; const numberOfIntervals = sortedTimestamps.length - 1; if (totalDurationSeconds > 0 && numberOfIntervals > 0) { const breathsPerMinute = (numberOfIntervals / totalDurationSeconds) * 60; breathRateDisplay.textContent = `Breath: ${breathsPerMinute.toFixed(1)} BPM`; } else { breathRateDisplay.textContent = "Breath: -- BPM"; } }
-        function calculateAndDisplayHeartRate() { if (lastConfirmedHeartbeatTimestamps.length < 2) { heartRateDisplay.textContent = calibrationState === 'complete' ? 'Pulse: -- BPM' : 'Pulse: ...'; return; } const sortedTimestamps = [...lastConfirmedHeartbeatTimestamps].sort((a, b) => a - b); const oldestEventTime = sortedTimestamps[0]; const newestEventTime = sortedTimestamps[sortedTimestamps.length - 1]; const totalDurationSeconds = (newestEventTime - oldestEventTime) / 1000; const numberOfIntervals = sortedTimestamps.length - 1; if (totalDurationSeconds > 0 && numberOfIntervals > 0) { const beatsPerMinute = (numberOfIntervals / totalDurationSeconds) * 60; heartRateDisplay.textContent = `Pulse: ${beatsPerMinute.toFixed(0)} BPM`; } else { heartRateDisplay.textContent = "Pulse: -- BPM"; } }
+        function calculateAndDisplayBreathingRate() { if (lastConfirmedBreathEventTimestamps.length < 2) { breathRateDisplay.textContent = calibrationState === 'complete' ? '--' : '...'; return; } const sortedTimestamps = [...lastConfirmedBreathEventTimestamps].sort((a, b) => a - b); const oldestEventTime = sortedTimestamps[0]; const newestEventTime = sortedTimestamps[sortedTimestamps.length - 1]; const totalDurationSeconds = (newestEventTime - oldestEventTime) / 1000; const numberOfIntervals = sortedTimestamps.length - 1; if (totalDurationSeconds > 0 && numberOfIntervals > 0) { const breathsPerMinute = (numberOfIntervals / totalDurationSeconds) * 60; breathRateDisplay.textContent = `${breathsPerMinute.toFixed(1)}`; } else { breathRateDisplay.textContent = "--"; } }
+        function calculateAndDisplayHeartRate() { if (lastConfirmedHeartbeatTimestamps.length < 2) { heartRateDisplay.textContent = calibrationState === 'complete' ? '--' : '...'; return; } const sortedTimestamps = [...lastConfirmedHeartbeatTimestamps].sort((a, b) => a - b); const oldestEventTime = sortedTimestamps[0]; const newestEventTime = sortedTimestamps[sortedTimestamps.length - 1]; const totalDurationSeconds = (newestEventTime - oldestEventTime) / 1000; const numberOfIntervals = sortedTimestamps.length - 1; if (totalDurationSeconds > 0 && numberOfIntervals > 0) { const beatsPerMinute = (numberOfIntervals / totalDurationSeconds) * 60; heartRateDisplay.textContent = `${beatsPerMinute.toFixed(0)}`; } else { heartRateDisplay.textContent = "--"; } }
         function savitzkyGolaySmooth(data) { const windowSize = SG_WINDOW_SIZE; const coeffs = SG_COEFFICIENTS; const denominator = SG_DENOMINATOR; const halfWindow = Math.floor(windowSize / 2); const smoothedData = []; if (data.length === 0) return []; const paddedData = []; for (let i = 0; i < halfWindow; i++) paddedData.push(data[0]); paddedData.push(...data); for (let i = 0; i < halfWindow; i++) paddedData.push(data[data.length - 1]); for (let i = 0; i < data.length; i++) { let sum = 0; for (let j = 0; j < windowSize; j++) sum += coeffs[j] * paddedData[i + j]; smoothedData.push(sum / denominator); } return smoothedData; }
         function processSignal(currentFiltVal, prevFiltVal, sampleTime) { if (prevFiltVal === null) return; const trendChangedToFalling = currentFiltVal < prevFiltVal; const trendChangedToRising = currentFiltVal > prevFiltVal; const actualPrevTime = sampleTime - SAMPLING_INTERVAL_MS; if (breathCycleState === 'EXPECTING_PEAK' && trendChangedToFalling) { lastDetectedBreathPeak = { value: prevFiltVal, time: actualPrevTime }; breathCycleState = 'EXPECTING_TROUGH'; } else if (breathCycleState === 'EXPECTING_TROUGH' && trendChangedToRising) { lastDetectedBreathTrough = { value: prevFiltVal, time: actualPrevTime }; if (lastDetectedBreathPeak.value !== null) { const amplitude = Math.abs(lastDetectedBreathPeak.value - lastDetectedBreathTrough.value); if (amplitude >= MIN_BREATH_AMPLITUDE_THRESHOLD) { logMessage(`BREATH EVENT: Amp ${amplitude.toFixed(3)}`, 'success'); lastConfirmedBreathEventTimestamps.push(lastDetectedBreathTrough.time); if (lastConfirmedBreathEventTimestamps.length > MAX_BREATH_EVENTS_FOR_RATE) lastConfirmedBreathEventTimestamps.shift(); calculateAndDisplayBreathingRate(); } } breathCycleState = 'EXPECTING_PEAK'; lastDetectedBreathPeak = { value: null, time: null }; lastDetectedBreathTrough = { value: null, time: null }; } if (lookingForHeartbeatPeak && trendChangedToFalling) { if (prevFiltVal > (potentialHeartbeatPeak.value || -Infinity)) { potentialHeartbeatPeak = {value: prevFiltVal, time: actualPrevTime}; } } else if (trendChangedToRising && potentialHeartbeatPeak.value !== null) { const hb_amplitude = Math.abs(potentialHeartbeatPeak.value - prevFiltVal); if (hb_amplitude >= MIN_HEARTBEAT_AMPLITUDE_THRESHOLD) { if (potentialHeartbeatPeak.time - lastHeartbeatPeakTime > MIN_HEARTBEAT_INTERVAL_MS) { logMessage(`PULSE EVENT: Amp ${hb_amplitude.toFixed(4)}`, 'pulse'); lastConfirmedHeartbeatTimestamps.push(potentialHeartbeatPeak.time); if (lastConfirmedHeartbeatTimestamps.length > MAX_HEARTBEAT_EVENTS_FOR_RATE) lastConfirmedHeartbeatTimestamps.shift(); calculateAndDisplayHeartRate(); lastHeartbeatPeakTime = potentialHeartbeatPeak.time; } } potentialHeartbeatPeak = {value: null, time: null}; } if (trendChangedToRising) lookingForHeartbeatPeak = true; if (trendChangedToFalling) lookingForHeartbeatPeak = false; }
         function processSensorData(key, zeroAdjustedValue, currentSampleTime) {
@@ -235,19 +254,12 @@
         });
         window.addEventListener('load', () => {
             logMessage('App loaded. Tap Start Session.');
-            // Slider setup with new defaults
-            breathAmpThresholdSlider.value = MIN_BREATH_AMPLITUDE_THRESHOLD;
-            breathAmpThresholdValueDisplay.textContent = MIN_BREATH_AMPLITUDE_THRESHOLD.toFixed(2);
+            breathAmpThresholdSlider.value = MIN_BREATH_AMPLITUDE_THRESHOLD; breathAmpThresholdValueDisplay.textContent = MIN_BREATH_AMPLITUDE_THRESHOLD.toFixed(2);
             breathAmpThresholdSlider.addEventListener('input', (event) => { MIN_BREATH_AMPLITUDE_THRESHOLD = parseFloat(event.target.value); breathAmpThresholdValueDisplay.textContent = MIN_BREATH_AMPLITUDE_THRESHOLD.toFixed(2); });
             breathAmpThresholdSlider.addEventListener('change', () => { logMessage(`Breath Amp Thresh: ${MIN_BREATH_AMPLITUDE_THRESHOLD.toFixed(3)}`); lastConfirmedBreathEventTimestamps = []; calculateAndDisplayBreathingRate(); });
 
-            heartAmpThresholdSlider.value = MIN_HEARTBEAT_AMPLITUDE_THRESHOLD;
-            heartAmpThresholdValueDisplay.textContent = MIN_HEARTBEAT_AMPLITUDE_THRESHOLD.toFixed(3);
-            // Adjust pulse slider range if necessary for the new default
-            heartAmpThresholdSlider.min = "0.001"; // Ensure new default is within range
-            heartAmpThresholdSlider.max = "0.05";  // Example adjusted max
-            heartAmpThresholdSlider.step= "0.001";
-
+            heartAmpThresholdSlider.value = MIN_HEARTBEAT_AMPLITUDE_THRESHOLD; heartAmpThresholdValueDisplay.textContent = MIN_HEARTBEAT_AMPLITUDE_THRESHOLD.toFixed(3);
+            heartAmpThresholdSlider.min = "0.001"; heartAmpThresholdSlider.max = "0.05"; heartAmpThresholdSlider.step= "0.001";
             heartAmpThresholdSlider.addEventListener('input', (event) => { MIN_HEARTBEAT_AMPLITUDE_THRESHOLD = parseFloat(event.target.value); heartAmpThresholdValueDisplay.textContent = MIN_HEARTBEAT_AMPLITUDE_THRESHOLD.toFixed(3); });
             heartAmpThresholdSlider.addEventListener('change', () => { logMessage(`Pulse Amp Thresh: ${MIN_HEARTBEAT_AMPLITUDE_THRESHOLD.toFixed(3)}`); lastConfirmedHeartbeatTimestamps = []; calculateAndDisplayHeartRate(); });
             
