@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Sound Visualizer & Amplifier</title>
+    <title>Bio-Acoustic Event Counter</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -28,6 +28,7 @@
             text-align: center;
             color: #1a73e8;
             margin-top: 0;
+            margin-bottom: 15px;
         }
         button {
             display: block;
@@ -50,7 +51,7 @@
             cursor: not-allowed;
         }
         .controls {
-            margin-bottom: 20px;
+            margin-bottom: 15px;
             text-align: center;
         }
         .controls label {
@@ -62,31 +63,46 @@
             width: 80%;
             margin-bottom: 5px;
         }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        .stats-grid div {
+            font-size: 14px;
+        }
+        .stats-grid span {
+            display: block;
+            font-size: 20px;
+            font-weight: bold;
+            color: #28a745;
+        }
         #micInfo, #dominantFreqDisplay {
             text-align: center;
-            font-size: 14px;
+            font-size: 12px;
             color: #555;
             margin-bottom: 5px;
-            min-height: 1.2em;
+            min-height: 1em;
         }
          #dominantFreqDisplay {
             font-weight: bold;
-            color: #28a745;
          }
 
         canvas {
             display: block;
             width: 100%;
-            height: 150px;
+            height: 120px; /* Reduced height */
             background-color: #e9e9e9;
             border-radius: 4px;
-            margin-bottom: 20px;
+            margin-bottom: 15px;
         }
         .logs {
-            margin-top: 20px;
+            margin-top: 15px;
             border: 1px solid #ddd;
             padding: 10px;
-            height: 120px; /* Reduced height slightly */
+            height: 100px; /* Reduced height */
             overflow-y: auto;
             font-size: 12px;
             background-color: #f9f9f9;
@@ -97,31 +113,34 @@
         .logs .info { color: green; }
         .logs .warn { color: orange; }
         .logs .debug { color: blue; }
+        .logs .event { color: purple; font-weight: bold;}
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Sound Visualizer</h1>
+        <h1>Bio-Acoustic Counter</h1>
 
         <button id="startButton">Start Monitoring</button>
         <button id="stopButton" disabled>Stop Monitoring</button>
 
         <div class="controls">
             <label for="ampSlider">Amplification: <span id="ampValue">1.0</span>x</label>
-            <input type="range" id="ampSlider" min="0.1" max="10" step="0.1" value="1">
+            <input type="range" id="ampSlider" min="0.1" max="15" step="0.1" value="10"> <!-- Default to 10x -->
+        </div>
+
+        <div class="stats-grid">
+            <div>Heartbeats<span id="heartbeatCountDisplay">0</span></div>
+            <div>Exhalations<span id="exhaleCountDisplay">0</span></div>
         </div>
 
         <div id="micInfo">Mic: (Inactive)</div>
         <div id="dominantFreqDisplay">Dominant Freq: --- Hz</div>
 
         <canvas id="soundWaveCanvas"></canvas>
-        <p style="text-align:center; font-size: 12px; margin-top: -15px; margin-bottom: 20px;">
-            (Overall amplified sound level)
-        </p>
-
+        
         <h2>Logs</h2>
         <div id="logsContainer" class="logs">
-            <p>App initialized. Waiting for user to start.</p>
+            <p>App initialized. Set amp to ~10x, then start.</p>
         </div>
     </div>
 
@@ -132,6 +151,8 @@
         const dominantFreqDisplay = document.getElementById('dominantFreqDisplay');
         const ampSlider = document.getElementById('ampSlider');
         const ampValueDisplay = document.getElementById('ampValue');
+        const heartbeatCountDisplay = document.getElementById('heartbeatCountDisplay');
+        const exhaleCountDisplay = document.getElementById('exhaleCountDisplay');
         const logsContainer = document.getElementById('logsContainer');
         const canvas = document.getElementById('soundWaveCanvas');
         const canvasCtx = canvas.getContext('2d');
@@ -139,12 +160,35 @@
         let audioContext;
         let analyser;
         let microphoneStream;
-        let gainNode; // For amplification
+        let gainNode;
         let animationFrameId;
         
         const FFT_SIZE = 2048; 
-        const MIN_ENERGY_FOR_FREQ_DISPLAY = 15; // Min energy in a bin to be considered dominant
         
+        // --- Configuration for Event Detection (CRITICAL TO TUNE THESE!) ---
+        const HEARTBEAT_LOW_HZ = 3000;
+        const HEARTBEAT_HIGH_HZ = 4000;
+        let HEARTBEAT_ENERGY_THRESHOLD = 100; // Min dominant frequency energy (0-255) to count as heartbeat. TUNE THIS!
+        const MIN_HEARTBEAT_INTERVAL_MS = 300; // Corresponds to max ~200 BPM
+
+        const EXHALE_LOW_HZ = 600;
+        const EXHALE_HIGH_HZ = 900;
+        let EXHALE_ENERGY_THRESHOLD = 70;    // Min dominant frequency energy to count as exhalation. TUNE THIS!
+        const MIN_EXHALE_INTERVAL_MS = 1000; // Corresponds to max ~60 BreathsPM
+        
+        const HYSTERESIS_FACTOR = 0.7; // For exiting an event state
+        let MIN_ENERGY_FOR_DOMINANT_FREQ_DISPLAY = 10; // General display threshold
+
+        // State variables for event detection
+        let heartbeatCount = 0;
+        let lastHeartbeatTime = 0;
+        let inHeartbeatEvent = false;
+
+        let exhaleCount = 0;
+        let lastExhaleTime = 0;
+        let inExhaleEvent = false;
+        // --- End Configuration ---
+
         const MAX_LOGS = 50;
         const CHART_BUFFER_SIZE = 100;
         let chartData = [];
@@ -164,14 +208,18 @@
         async function startMonitoring() {
             logMessage('Attempting to start monitoring...');
             startButton.disabled = true;
+            // Reset counters and states
+            heartbeatCount = 0; lastHeartbeatTime = 0; inHeartbeatEvent = false;
+            exhaleCount = 0; lastExhaleTime = 0; inExhaleEvent = false;
+            updateEventDisplays();
 
+            // ... (rest of the microphone selection and AudioContext setup is identical to previous version) ...
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
                 logMessage('getUserMedia not supported on your browser!', 'error');
                 alert('Your browser does not support microphone access.');
                 startButton.disabled = false;
                 return;
             }
-
             let initialStream;
             try {
                 initialStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
@@ -182,115 +230,89 @@
                 startButton.disabled = false;
                 return;
             }
-
             let selectedDeviceId = null;
             let selectedDeviceLabel = "Default";
-
             try {
                 const devices = await navigator.mediaDevices.enumerateDevices();
                 const audioInputDevices = devices.filter(device => device.kind === 'audioinput');
                 logMessage(`Found ${audioInputDevices.length} audio input devices:`, 'debug');
                 audioInputDevices.forEach(d => logMessage(`  - Label: "${d.label}", ID: ${d.deviceId.substring(0,10)}...`, 'debug'));
-
                 if (audioInputDevices.length > 0) {
                     let potentialBluetoothDevice = audioInputDevices.find(device => 
                         /bluetooth|headset|airpods/i.test(device.label) && !/iphone microphone|built-in/i.test(device.label)
                     );
-                    
                     if (!potentialBluetoothDevice) {
                         potentialBluetoothDevice = audioInputDevices.find(device =>
-                           device.label && 
-                           !/iphone microphone|built-in/i.test(device.label) && 
-                           device.deviceId !== 'default' && 
-                           audioInputDevices.length > 1 
+                           device.label && !/iphone microphone|built-in/i.test(device.label) && 
+                           device.deviceId !== 'default' && audioInputDevices.length > 1 
                         );
                     }
-
                     if (potentialBluetoothDevice) {
                         selectedDeviceId = potentialBluetoothDevice.deviceId;
                         selectedDeviceLabel = potentialBluetoothDevice.label || "Selected Non-Default";
                         logMessage(`Attempting to use specific device: ${selectedDeviceLabel} (ID: ${selectedDeviceId.substring(0,10)}...)`, 'info');
                     } else {
-                        logMessage('No specific Bluetooth/external headset detected by label, or only one mic. Using system default.', 'warn');
+                        logMessage('No specific Bluetooth/external headset detected. Using system default.', 'warn');
                         if (audioInputDevices.length > 0 && initialStream.getAudioTracks()[0].label) {
                              selectedDeviceLabel = initialStream.getAudioTracks()[0].label || "Default";
                         }
                     }
                 } else {
-                    logMessage('No audio input devices found after initial grant. This is unexpected.', 'error');
+                    logMessage('No audio input devices found.', 'error');
                     if (initialStream) initialStream.getTracks().forEach(track => track.stop());
-                    startButton.disabled = false;
-                    return;
+                    startButton.disabled = false; return;
                 }
-
                 if (initialStream) {
                     initialStream.getTracks().forEach(track => track.stop());
                     logMessage('Stopped initial generic stream.', 'debug');
                 }
-
                 const constraints = {
                     audio: selectedDeviceId ? { deviceId: { exact: selectedDeviceId } } : true,
                     video: false
                 };
-                
-                logMessage(`Requesting final microphone stream with constraints: ${JSON.stringify(constraints.audio)}`, 'debug');
                 microphoneStream = await navigator.mediaDevices.getUserMedia(constraints);
-                
                 const currentTrack = microphoneStream.getAudioTracks()[0];
                 const finalDeviceLabel = currentTrack.label || (selectedDeviceId ? selectedDeviceLabel : "System Default");
                 micInfoDisplay.textContent = `Mic: ${finalDeviceLabel.substring(0,30)}${finalDeviceLabel.length > 30 ? '...' : ''}`;
-                logMessage(`Successfully using microphone: "${finalDeviceLabel}"`, 'info');
+                logMessage(`Successfully using mic: "${finalDeviceLabel}"`, 'info');
                 const settings = currentTrack.getSettings();
-                if(settings.deviceId) logMessage(`Actual Device ID being used: ${settings.deviceId.substring(0,10)}...`, 'debug');
-
-
+                if(settings.deviceId) logMessage(`Actual Device ID: ${settings.deviceId.substring(0,10)}...`, 'debug');
             } catch (err) {
-                logMessage(`Error during device selection or final stream acquisition: ${err.name} - ${err.message}`, 'error');
+                logMessage(`Error during device selection: ${err.name} - ${err.message}`, 'error');
                 if (initialStream) initialStream.getTracks().forEach(track => track.stop());
                 if (microphoneStream) microphoneStream.getTracks().forEach(track => track.stop());
-                startButton.disabled = false;
-                stopButton.disabled = true;
+                startButton.disabled = false; stopButton.disabled = true;
                 micInfoDisplay.textContent = "Mic: Error";
                 dominantFreqDisplay.textContent = "Dominant Freq: --- Hz";
                 return;
             }
-            
             try {
                 audioContext = new (window.AudioContext || window.webkitAudioContext)();
                 logMessage(`AudioContext created. Sample rate: ${audioContext.sampleRate} Hz`, 'info');
-
                 const source = audioContext.createMediaStreamSource(microphoneStream);
-                
                 gainNode = audioContext.createGain();
-                gainNode.gain.value = parseFloat(ampSlider.value); // Set initial gain
-                
+                gainNode.gain.value = parseFloat(ampSlider.value);
                 analyser = audioContext.createAnalyser();
                 analyser.fftSize = FFT_SIZE; 
-                analyser.smoothingTimeConstant = 0.5;
-
+                analyser.smoothingTimeConstant = 0.3; // Slightly less smoothing for faster event detection
                 source.connect(gainNode);
                 gainNode.connect(analyser);
-                // Analyser does not need to connect to destination if only analyzing
-                
                 logMessage(`Analyser FFT size: ${analyser.fftSize}, Freq bin count: ${analyser.frequencyBinCount}`, 'info');
                 logMessage(`Initial amplification: ${gainNode.gain.value.toFixed(1)}x`, 'info');
-                
                 stopButton.disabled = false;
                 chartData = [];
-                
                 processAudio();
-
             } catch (err) {
                 logMessage(`Error setting up AudioContext/Analyser: ${err.message}`, 'error');
                 if (microphoneStream) microphoneStream.getTracks().forEach(track => track.stop());
-                startButton.disabled = false;
-                stopButton.disabled = true;
+                startButton.disabled = false; stopButton.disabled = true;
                 micInfoDisplay.textContent = "Mic: Error";
                 dominantFreqDisplay.textContent = "Dominant Freq: --- Hz";
             }
         }
 
         function stopMonitoring() {
+            // ... (Identical to previous version's stopMonitoring, just ensure display reset) ...
             logMessage('Stopping monitoring...');
             if (animationFrameId) {
                 cancelAnimationFrame(animationFrameId);
@@ -301,17 +323,17 @@
                 logMessage('Microphone stream stopped.', 'info');
                 microphoneStream = null;
             }
-            // Disconnect nodes before closing context for good measure
             if (gainNode) gainNode.disconnect();
-            if (analyser && gainNode) analyser.disconnect(); // Analyser was connected to gainNode
+            if (analyser && gainNode) {} // Analyser was connected to gainNode, which is now disconnected.
+                                          // Direct disconnection of analyser not strictly needed if source (gainNode) is disconnected.
 
             if (audioContext && audioContext.state !== 'closed') {
                 audioContext.close().then(() => {
                     logMessage('AudioContext closed.', 'info');
-                    audioContext = null; // Clear reference after close
-                    gainNode = null;
-                    analyser = null;
+                    audioContext = null; gainNode = null; analyser = null;
                 });
+            } else { // Ensure these are nullified even if context wasn't open or already closed
+                 audioContext = null; gainNode = null; analyser = null;
             }
             
             startButton.disabled = false;
@@ -320,6 +342,12 @@
             drawChart(); 
             micInfoDisplay.textContent = "Mic: (Inactive)";
             dominantFreqDisplay.textContent = "Dominant Freq: --- Hz";
+            // Do not reset counts here, user might want to see final counts.
+        }
+
+        function updateEventDisplays() {
+            heartbeatCountDisplay.textContent = heartbeatCount;
+            exhaleCountDisplay.textContent = exhaleCount;
         }
 
         function processAudio() {
@@ -330,14 +358,11 @@
             }
             const bufferLength = analyser.frequencyBinCount; 
             const dataArray = new Uint8Array(bufferLength); 
-
             analyser.getByteFrequencyData(dataArray);
 
-            // Calculate overall sound level (average of all frequency bin values)
             let sumEnergy = 0;
             let maxEnergy = 0;
             let maxEnergyIndex = 0;
-
             for (let i = 0; i < bufferLength; i++) {
                 sumEnergy += dataArray[i];
                 if (dataArray[i] > maxEnergy) {
@@ -346,84 +371,99 @@
                 }
             }
             const overallAverageEnergy = bufferLength > 0 ? sumEnergy / bufferLength : 0;
-            
             chartData.push(overallAverageEnergy);
-            if (chartData.length > CHART_BUFFER_SIZE) {
-                chartData.shift();
-            }
+            if (chartData.length > CHART_BUFFER_SIZE) chartData.shift();
             drawChart();
 
-            // Display dominant frequency
-            if (maxEnergy > MIN_ENERGY_FOR_FREQ_DISPLAY && audioContext) {
-                const nyquist = audioContext.sampleRate / 2;
-                const dominantFrequency = (maxEnergyIndex * nyquist) / bufferLength;
-                dominantFreqDisplay.textContent = `Dominant Freq: ${dominantFrequency.toFixed(0)} Hz (Energy: ${maxEnergy})`;
+            const nyquist = audioContext.sampleRate / 2;
+            const dominantFrequency = (maxEnergyIndex * nyquist) / bufferLength;
+
+            if (maxEnergy > MIN_ENERGY_FOR_DOMINANT_FREQ_DISPLAY) {
+                dominantFreqDisplay.textContent = `Dominant Freq: ${dominantFrequency.toFixed(0)} Hz (E: ${maxEnergy})`;
             } else {
                 dominantFreqDisplay.textContent = "Dominant Freq: --- Hz";
+            }
+
+            const currentTime = Date.now();
+
+            // --- Heartbeat Detection ---
+            const isHeartbeatFreqRange = dominantFrequency >= HEARTBEAT_LOW_HZ && dominantFrequency <= HEARTBEAT_HIGH_HZ;
+            if (isHeartbeatFreqRange && maxEnergy > HEARTBEAT_ENERGY_THRESHOLD && !inHeartbeatEvent && (currentTime - lastHeartbeatTime > MIN_HEARTBEAT_INTERVAL_MS)) {
+                heartbeatCount++;
+                lastHeartbeatTime = currentTime;
+                inHeartbeatEvent = true;
+                updateEventDisplays();
+                logMessage(`Heartbeat detected (#${heartbeatCount}) @ ${dominantFrequency.toFixed(0)}Hz, E:${maxEnergy}`, 'event');
+            } else if (inHeartbeatEvent && (!isHeartbeatFreqRange || maxEnergy < HEARTBEAT_ENERGY_THRESHOLD * HYSTERESIS_FACTOR)) {
+                inHeartbeatEvent = false; // Reset if dominant freq moves out of band OR energy drops
+            }
+
+            // --- Exhalation Detection ---
+            const isExhaleFreqRange = dominantFrequency >= EXHALE_LOW_HZ && dominantFrequency <= EXHALE_HIGH_HZ;
+            if (isExhaleFreqRange && maxEnergy > EXHALE_ENERGY_THRESHOLD && !inExhaleEvent && (currentTime - lastExhaleTime > MIN_EXHALE_INTERVAL_MS)) {
+                exhaleCount++;
+                lastExhaleTime = currentTime;
+                inExhaleEvent = true;
+                updateEventDisplays();
+                logMessage(`Exhalation detected (#${exhaleCount}) @ ${dominantFrequency.toFixed(0)}Hz, E:${maxEnergy}`, 'event');
+            } else if (inExhaleEvent && (!isExhaleFreqRange || maxEnergy < EXHALE_ENERGY_THRESHOLD * HYSTERESIS_FACTOR)) {
+                inExhaleEvent = false; // Reset
             }
             
             animationFrameId = requestAnimationFrame(processAudio);
         }
         
+        // ... (drawChart, resizeCanvas, slider listener are identical to previous version) ...
         function drawChart() {
             canvasCtx.fillStyle = '#e9e9e9';
             canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
-
             if (chartData.length === 0) return;
-
             canvasCtx.lineWidth = 2;
             canvasCtx.strokeStyle = '#1a73e8';
             canvasCtx.beginPath();
-
             const sliceWidth = canvas.width * 1.0 / chartData.length;
             let x = 0;
-
             for (let i = 0; i < chartData.length; i++) {
                 const v = chartData[i] / 255.0; 
                 const y = canvas.height - (v * canvas.height);
-
-                if (i === 0) {
-                    canvasCtx.moveTo(x, y);
-                } else {
-                    canvasCtx.lineTo(x, y);
-                }
+                if (i === 0) canvasCtx.moveTo(x, y);
+                else canvasCtx.lineTo(x, y);
                 x += sliceWidth;
             }
             canvasCtx.stroke();
         }
-        
         function resizeCanvas() {
             const displayWidth  = canvas.clientWidth;
             const displayHeight = canvas.clientHeight;
-
             if (canvas.width  !== displayWidth || canvas.height !== displayHeight) {
                 canvas.width  = displayWidth;
                 canvas.height = displayHeight;
                 drawChart();
             }
         }
-
-        // Event Listeners
         startButton.addEventListener('click', startMonitoring);
         stopButton.addEventListener('click', stopMonitoring);
         window.addEventListener('resize', resizeCanvas);
-
         ampSlider.addEventListener('input', (event) => {
             const newGain = parseFloat(event.target.value);
             if (gainNode && audioContext && audioContext.state === 'running') {
                 gainNode.gain.setValueAtTime(newGain, audioContext.currentTime);
-                // gainNode.gain.value = newGain; // Direct assignment works too, setValueAtTime is smoother
-            } else if (gainNode) { // If context not running but node exists (e.g. during setup or after stop)
+            } else if (gainNode) {
                 gainNode.gain.value = newGain;
             }
             ampValueDisplay.textContent = newGain.toFixed(1);
-            logMessage(`Amplification set to ${newGain.toFixed(1)}x`, 'debug');
+            // logMessage(`Amplification set to ${newGain.toFixed(1)}x`, 'debug'); // Can be noisy
         });
 
         // Initial setup
         resizeCanvas();
-        ampValueDisplay.textContent = parseFloat(ampSlider.value).toFixed(1); // Initialize display
-        logMessage('App ready. Adjust amplification, connect headset, then start monitoring.', 'info');
+        ampValueDisplay.textContent = parseFloat(ampSlider.value).toFixed(1);
+        updateEventDisplays(); // Initialize displays to 0
+        logMessage('App ready. Adjust amp (~10x suggested), then Start.', 'info');
+        // Add these to console for live tuning if needed:
+        // window.setHeartbeatThreshold = (val) => { HEARTBEAT_ENERGY_THRESHOLD = val; console.log("Heartbeat E_thresh:", val); }
+        // window.setExhaleThreshold = (val) => { EXHALE_ENERGY_THRESHOLD = val; console.log("Exhale E_thresh:", val); }
+        // window.setDominantDisplayThreshold = (val) => { MIN_ENERGY_FOR_DOMINANT_FREQ_DISPLAY = val; console.log("Dominant Display E_thresh:", val); }
 
     </script></body>
 </html>
