@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Breath Counter</title>
+    <title>Breath Counter (Bluetooth Mic Priority)</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -52,12 +52,19 @@
         .stats {
             text-align: center;
             font-size: 18px;
-            margin-bottom: 20px;
+            margin-bottom: 10px;
         }
         .stats span {
             font-weight: bold;
             font-size: 24px;
             color: #28a745;
+        }
+        #micInfo {
+            text-align: center;
+            font-size: 12px;
+            color: #555;
+            margin-bottom: 20px;
+            min-height: 1em;
         }
         canvas {
             display: block;
@@ -77,14 +84,11 @@
             background-color: #f9f9f9;
             border-radius: 4px;
         }
-        .logs p {
-            margin: 2px 0;
-            padding: 2px;
-            border-bottom: 1px solid #eee;
-        }
+        .logs p { margin: 2px 0; padding: 2px; border-bottom: 1px solid #eee; }
         .logs .error { color: red; }
         .logs .info { color: green; }
         .logs .warn { color: orange; }
+        .logs .debug { color: blue; }
     </style>
 </head>
 <body>
@@ -97,6 +101,7 @@
         <div class="stats">
             Breaths: <span id="breathCount">0</span>
         </div>
+        <div id="micInfo">Mic: (Inactive)</div>
 
         <canvas id="soundWaveCanvas"></canvas>
         <p style="text-align:center; font-size: 12px; margin-top: -15px; margin-bottom: 20px;">
@@ -113,37 +118,36 @@
         const startButton = document.getElementById('startButton');
         const stopButton = document.getElementById('stopButton');
         const breathCountDisplay = document.getElementById('breathCount');
+        const micInfoDisplay = document.getElementById('micInfo');
         const logsContainer = document.getElementById('logsContainer');
         const canvas = document.getElementById('soundWaveCanvas');
         const canvasCtx = canvas.getContext('2d');
 
         let audioContext;
         let analyser;
-        let microphoneStream;
-        let scriptProcessor; // Or use AnalyserNode directly in loop
+        let microphoneStream; // This will hold the final, potentially specific, stream
         let animationFrameId;
 
         let breathCount = 0;
         let isBreathing = false;
         let lastPeakTime = 0;
-        const MIN_BREATH_INTERVAL = 1500; // milliseconds, min time between breaths
+        const MIN_BREATH_INTERVAL = 1500; // milliseconds
         
-        // Configurable parameters (these require significant tuning)
-        const FFT_SIZE = 2048; // Power of 2. Affects frequency resolution.
-        const SAMPLE_RATE = 44100; // Typical, but audioContext.sampleRate will be used
-        const LOW_FREQ_BREATH = 100; // Hz - lower bound for breathing sounds
-        const HIGH_FREQ_BREATH = 800; // Hz - upper bound for breathing sounds
-        let BREATH_ENERGY_THRESHOLD = 50; // Arbitrary, normalized 0-255. VERY SENSITIVE TO MIC & PLACEMENT
-        const MIN_PEAK_HEIGHT = 30; // Min energy to be considered a peak start
-        const HYSTERESIS_FACTOR = 0.6; // Factor for falling edge detection
+        const FFT_SIZE = 2048;
+        const LOW_FREQ_BREATH = 100; 
+        const HIGH_FREQ_BREATH = 800;
+        let BREATH_ENERGY_THRESHOLD = 50; 
+        const MIN_PEAK_HEIGHT = 30; 
+        const HYSTERESIS_FACTOR = 0.6;
 
         const MAX_LOGS = 50;
-        const CHART_BUFFER_SIZE = 100; // Number of data points for the chart
+        const CHART_BUFFER_SIZE = 100;
         let chartData = [];
 
         function logMessage(message, type = 'info') {
             const p = document.createElement('p');
-            p.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 });
+            p.textContent = `[${timestamp}] ${message}`;
             p.className = type;
             logsContainer.appendChild(p);
             if (logsContainer.children.length > MAX_LOGS) {
@@ -154,16 +158,107 @@
 
         async function startMonitoring() {
             logMessage('Attempting to start monitoring...');
+            startButton.disabled = true; // Disable early
+
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
                 logMessage('getUserMedia not supported on your browser!', 'error');
                 alert('Your browser does not support microphone access.');
+                startButton.disabled = false;
                 return;
             }
 
+            let initialStream;
             try {
-                microphoneStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-                logMessage('Microphone access granted.', 'info');
+                // 1. Request generic audio permission first to help unmask device labels
+                initialStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+                logMessage('Initial generic microphone access granted.', 'info');
+            } catch (err) {
+                logMessage(`Error getting initial microphone permission: ${err.name} - ${err.message}`, 'error');
+                alert(`Error accessing microphone: ${err.message}. Please ensure permission is granted.`);
+                startButton.disabled = false;
+                return;
+            }
 
+            let selectedDeviceId = null;
+            let selectedDeviceLabel = "Default";
+
+            try {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const audioInputDevices = devices.filter(device => device.kind === 'audioinput');
+                logMessage(`Found ${audioInputDevices.length} audio input devices:`, 'debug');
+                audioInputDevices.forEach(d => logMessage(`  - Label: "${d.label}", ID: ${d.deviceId.substring(0,10)}...`, 'debug'));
+
+                if (audioInputDevices.length > 0) {
+                    // Heuristic: look for "bluetooth" or "headset" in label.
+                    // Prefer devices that are NOT an "iPhone Microphone" if a BT one is found.
+                    // iOS labels can be tricky; sometimes they are blank or generic.
+                    let potentialBluetoothDevice = audioInputDevices.find(device => 
+                        /bluetooth|headset/i.test(device.label) && !/iphone microphone/i.test(device.label)
+                    );
+                    
+                    if (!potentialBluetoothDevice) { // Fallback if specific BT terms aren't found but multiple mics exist
+                        potentialBluetoothDevice = audioInputDevices.find(device =>
+                           device.label && // Ensure label exists
+                           !/iphone microphone|built-in/i.test(device.label) && // Not clearly built-in
+                           device.deviceId !== 'default' && // Not the abstract default device
+                           audioInputDevices.length > 1 // Only if there's more than one mic
+                        );
+                    }
+
+                    if (potentialBluetoothDevice) {
+                        selectedDeviceId = potentialBluetoothDevice.deviceId;
+                        selectedDeviceLabel = potentialBluetoothDevice.label || "Selected Non-Default";
+                        logMessage(`Attempting to use specific device: ${selectedDeviceLabel} (ID: ${selectedDeviceId.substring(0,10)}...)`, 'info');
+                    } else {
+                        logMessage('No specific Bluetooth/external headset detected by label, or only one mic. Using system default.', 'warn');
+                        // selectedDeviceId remains null, getUserMedia will pick default
+                        if (audioInputDevices.length > 0 && initialStream.getAudioTracks()[0].label) {
+                             selectedDeviceLabel = initialStream.getAudioTracks()[0].label || "Default";
+                        }
+                    }
+                } else {
+                    logMessage('No audio input devices found after initial grant. This is unexpected.', 'error');
+                     // Stop the initial stream if it's still active for some reason
+                    if (initialStream) initialStream.getTracks().forEach(track => track.stop());
+                    startButton.disabled = false;
+                    return;
+                }
+
+                // Stop the initial generic stream before requesting a specific one (if different)
+                // or if we are just going to use the one we got.
+                if (initialStream) {
+                    initialStream.getTracks().forEach(track => track.stop());
+                    logMessage('Stopped initial generic stream.', 'debug');
+                }
+
+                const constraints = {
+                    audio: selectedDeviceId ? { deviceId: { exact: selectedDeviceId } } : true,
+                    video: false
+                };
+                
+                logMessage(`Requesting final microphone stream with constraints: ${JSON.stringify(constraints.audio)}`, 'debug');
+                microphoneStream = await navigator.mediaDevices.getUserMedia(constraints);
+                
+                const currentTrack = microphoneStream.getAudioTracks()[0];
+                const finalDeviceLabel = currentTrack.label || (selectedDeviceId ? selectedDeviceLabel : "System Default");
+                micInfoDisplay.textContent = `Mic: ${finalDeviceLabel.substring(0,30)}${finalDeviceLabel.length > 30 ? '...' : ''}`;
+                logMessage(`Successfully using microphone: "${finalDeviceLabel}"`, 'info');
+                const settings = currentTrack.getSettings();
+                if(settings.deviceId) logMessage(`Actual Device ID being used: ${settings.deviceId.substring(0,10)}...`, 'debug');
+
+
+            } catch (err) {
+                logMessage(`Error during device selection or final stream acquisition: ${err.name} - ${err.message}`, 'error');
+                if (initialStream) initialStream.getTracks().forEach(track => track.stop());
+                if (microphoneStream) microphoneStream.getTracks().forEach(track => track.stop());
+                startButton.disabled = false;
+                stopButton.disabled = true;
+                micInfoDisplay.textContent = "Mic: Error";
+                return;
+            }
+            
+            // Proceed with AudioContext setup
+            try {
                 audioContext = new (window.AudioContext || window.webkitAudioContext)();
                 logMessage(`AudioContext created. Sample rate: ${audioContext.sampleRate} Hz`, 'info');
 
@@ -171,26 +266,20 @@
                 
                 analyser = audioContext.createAnalyser();
                 analyser.fftSize = FFT_SIZE;
-                analyser.smoothingTimeConstant = 0.8; // Smoothes out the values
+                analyser.smoothingTimeConstant = 0.8; 
 
                 source.connect(analyser);
-                // No need to connect analyser to destination if we only analyze
-
-                // Adjust threshold based on a quick calibration if desired, or keep fixed
-                // For simplicity, we'll use a fixed threshold, but this is a weak point.
-                // A more advanced app might have a calibration step.
-                logMessage(`Using FFT size: ${analyser.fftSize}, Freq bin count: ${analyser.frequencyBinCount}`, 'info');
-                logMessage(`Targeting frequencies: ${LOW_FREQ_BREATH}Hz - ${HIGH_FREQ_BREATH}Hz`, 'info');
                 
-                // Determine frequency bins for breathing range
-                const freqBinCount = analyser.frequencyBinCount; // fftSize / 2
+                const freqBinCount = analyser.frequencyBinCount;
                 const nyquist = audioContext.sampleRate / 2;
-                const lowBin = Math.round(LOW_FREQ_BREATH / (nyquist / freqBinCount));
-                const highBin = Math.round(HIGH_FREQ_BREATH / (nyquist / freqBinCount));
-                logMessage(`Relevant Freq Bins: ${lowBin} to ${highBin} (out of ${freqBinCount})`, 'info');
+                const lowBin = Math.max(0, Math.round(LOW_FREQ_BREATH / (nyquist / freqBinCount)));
+                const highBin = Math.min(freqBinCount -1, Math.round(HIGH_FREQ_BREATH / (nyquist / freqBinCount)));
+                logMessage(`Targeting frequencies: ${LOW_FREQ_BREATH}Hz - ${HIGH_FREQ_BREATH}Hz (Bins: ${lowBin}-${highBin})`, 'info');
+                if (lowBin >= highBin) {
+                    logMessage('Warning: Low frequency bin is not less than high frequency bin. Check FFT_SIZE and frequency settings.', 'warn');
+                }
 
 
-                startButton.disabled = true;
                 stopButton.disabled = false;
                 breathCount = 0;
                 isBreathing = false;
@@ -201,10 +290,11 @@
                 processAudio(lowBin, highBin);
 
             } catch (err) {
-                logMessage(`Error accessing microphone: ${err.name} - ${err.message}`, 'error');
-                alert(`Error accessing microphone: ${err.message}. Please ensure you've granted permission.`);
+                logMessage(`Error setting up AudioContext/Analyser: ${err.message}`, 'error');
+                if (microphoneStream) microphoneStream.getTracks().forEach(track => track.stop());
                 startButton.disabled = false;
                 stopButton.disabled = true;
+                micInfoDisplay.textContent = "Mic: Error";
             }
         }
 
@@ -212,59 +302,65 @@
             logMessage('Stopping monitoring...');
             if (animationFrameId) {
                 cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
             }
             if (microphoneStream) {
                 microphoneStream.getTracks().forEach(track => track.stop());
                 logMessage('Microphone stream stopped.', 'info');
+                microphoneStream = null;
             }
             if (audioContext && audioContext.state !== 'closed') {
                 audioContext.close().then(() => logMessage('AudioContext closed.', 'info'));
+                audioContext = null;
             }
             
             startButton.disabled = false;
             stopButton.disabled = true;
-            isBreathing = false; // Reset breathing state
-            chartData = []; // Clear chart data
-            drawChart(); // Redraw empty chart
+            isBreathing = false;
+            chartData = []; 
+            drawChart(); 
+            micInfoDisplay.textContent = "Mic: (Inactive)";
         }
 
         function processAudio(lowBin, highBin) {
+            if (!analyser) {
+                logMessage('Analyser not ready in processAudio', 'error');
+                stopMonitoring(); // Critical error, stop.
+                return;
+            }
             const bufferLength = analyser.frequencyBinCount;
-            const dataArray = new Uint8Array(bufferLength); // For frequency data
+            const dataArray = new Uint8Array(bufferLength); 
 
             analyser.getByteFrequencyData(dataArray);
 
-            // Calculate average energy in the target frequency range
             let sumEnergy = 0;
+            let count = 0;
             for (let i = lowBin; i <= highBin; i++) {
                 sumEnergy += dataArray[i];
+                count++;
             }
-            const avgEnergy = highBin > lowBin ? sumEnergy / (highBin - lowBin + 1) : 0;
+            const avgEnergy = count > 0 ? sumEnergy / count : 0;
             
-            // Add to chart data (normalized energy)
             chartData.push(avgEnergy);
             if (chartData.length > CHART_BUFFER_SIZE) {
                 chartData.shift();
             }
             drawChart();
 
-            // Simple breath detection logic (very basic peak detection)
             const currentTime = Date.now();
             if (avgEnergy > MIN_PEAK_HEIGHT && avgEnergy > BREATH_ENERGY_THRESHOLD && !isBreathing) {
-                // Potential start of inhale
-                isBreathing = true; // Mark as "in potential breath cycle"
-                logMessage(`Potential inhale start (Energy: ${avgEnergy.toFixed(2)})`, 'debug');
+                isBreathing = true;
+                // logMessage(`Potential inhale start (Energy: ${avgEnergy.toFixed(2)})`, 'debug');
             } else if (isBreathing && avgEnergy < BREATH_ENERGY_THRESHOLD * HYSTERESIS_FACTOR) {
-                // Potential end of breath (energy dropped below hysteresis threshold)
                 if (currentTime - lastPeakTime > MIN_BREATH_INTERVAL) {
                     breathCount++;
                     lastPeakTime = currentTime;
                     updateBreathCountDisplay();
                     logMessage(`Breath detected! Count: ${breathCount} (Energy fell to ${avgEnergy.toFixed(2)})`, 'info');
                 } else {
-                    logMessage(`Breath-like sound too soon (Energy: ${avgEnergy.toFixed(2)})`, 'debug');
+                    // logMessage(`Breath-like sound too soon (Energy: ${avgEnergy.toFixed(2)})`, 'debug');
                 }
-                isBreathing = false; // Reset for next breath
+                isBreathing = false;
             }
             
             animationFrameId = requestAnimationFrame(() => processAudio(lowBin, highBin));
@@ -275,7 +371,7 @@
         }
 
         function drawChart() {
-            canvasCtx.fillStyle = '#e9e9e9'; // Background
+            canvasCtx.fillStyle = '#e9e9e9';
             canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
 
             if (chartData.length === 0) return;
@@ -288,7 +384,7 @@
             let x = 0;
 
             for (let i = 0; i < chartData.length; i++) {
-                const v = chartData[i] / 255.0; // Normalize to 0-1 (Uint8Array values are 0-255)
+                const v = chartData[i] / 255.0; 
                 const y = canvas.height - (v * canvas.height);
 
                 if (i === 0) {
@@ -301,7 +397,6 @@
             canvasCtx.stroke();
         }
         
-        // Ensure canvas is sized based on its CSS dimensions
         function resizeCanvas() {
             const displayWidth  = canvas.clientWidth;
             const displayHeight = canvas.clientHeight;
@@ -309,22 +404,18 @@
             if (canvas.width  !== displayWidth || canvas.height !== displayHeight) {
                 canvas.width  = displayWidth;
                 canvas.height = displayHeight;
-                drawChart(); // Redraw after resize
+                drawChart();
             }
         }
 
-        // Event Listeners
         startButton.addEventListener('click', startMonitoring);
         stopButton.addEventListener('click', stopMonitoring);
-        window.addEventListener('resize', resizeCanvas); // Handle responsive canvas
+        window.addEventListener('resize', resizeCanvas);
 
-        // Initial setup
         resizeCanvas();
-        logMessage('App ready. Click "Start Monitoring" to begin.', 'info');
-        
-        // For debugging purposes, make some functions global
+        logMessage('App ready. Connect Bluetooth headset if desired, then click "Start Monitoring".', 'info');
         // window.setBreathThreshold = (val) => { BREATH_ENERGY_THRESHOLD = val; logMessage(`Threshold set to ${val}`); };
-        // console.log("You can use setBreathThreshold(value) in console to adjust sensitivity.");
+        // console.log("You can use setBreathThreshold(value) in console to adjust sensitivity (uncomment in code).");
 
     </script>
 </body>
