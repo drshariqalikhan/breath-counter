@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Sound Visualizer (Bluetooth Mic Priority)</title>
+    <title>Sound Visualizer & Amplifier</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -49,13 +49,31 @@
             background-color: #ccc;
             cursor: not-allowed;
         }
-        #micInfo {
-            text-align: center;
-            font-size: 12px;
-            color: #555;
+        .controls {
             margin-bottom: 20px;
-            min-height: 1em;
+            text-align: center;
         }
+        .controls label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+        .controls input[type="range"] {
+            width: 80%;
+            margin-bottom: 5px;
+        }
+        #micInfo, #dominantFreqDisplay {
+            text-align: center;
+            font-size: 14px;
+            color: #555;
+            margin-bottom: 5px;
+            min-height: 1.2em;
+        }
+         #dominantFreqDisplay {
+            font-weight: bold;
+            color: #28a745;
+         }
+
         canvas {
             display: block;
             width: 100%;
@@ -68,7 +86,7 @@
             margin-top: 20px;
             border: 1px solid #ddd;
             padding: 10px;
-            height: 150px;
+            height: 120px; /* Reduced height slightly */
             overflow-y: auto;
             font-size: 12px;
             background-color: #f9f9f9;
@@ -88,11 +106,17 @@
         <button id="startButton">Start Monitoring</button>
         <button id="stopButton" disabled>Stop Monitoring</button>
 
+        <div class="controls">
+            <label for="ampSlider">Amplification: <span id="ampValue">1.0</span>x</label>
+            <input type="range" id="ampSlider" min="0.1" max="10" step="0.1" value="1">
+        </div>
+
         <div id="micInfo">Mic: (Inactive)</div>
+        <div id="dominantFreqDisplay">Dominant Freq: --- Hz</div>
 
         <canvas id="soundWaveCanvas"></canvas>
         <p style="text-align:center; font-size: 12px; margin-top: -15px; margin-bottom: 20px;">
-            (Overall sound level detected)
+            (Overall amplified sound level)
         </p>
 
         <h2>Logs</h2>
@@ -105,6 +129,9 @@
         const startButton = document.getElementById('startButton');
         const stopButton = document.getElementById('stopButton');
         const micInfoDisplay = document.getElementById('micInfo');
+        const dominantFreqDisplay = document.getElementById('dominantFreqDisplay');
+        const ampSlider = document.getElementById('ampSlider');
+        const ampValueDisplay = document.getElementById('ampValue');
         const logsContainer = document.getElementById('logsContainer');
         const canvas = document.getElementById('soundWaveCanvas');
         const canvasCtx = canvas.getContext('2d');
@@ -112,10 +139,11 @@
         let audioContext;
         let analyser;
         let microphoneStream;
+        let gainNode; // For amplification
         let animationFrameId;
         
-        const FFT_SIZE = 2048; // Could be smaller now if we don't need high frequency resolution
-                               // but AnalyserNode still uses it for its buffer.
+        const FFT_SIZE = 2048; 
+        const MIN_ENERGY_FOR_FREQ_DISPLAY = 15; // Min energy in a bin to be considered dominant
         
         const MAX_LOGS = 50;
         const CHART_BUFFER_SIZE = 100;
@@ -223,6 +251,7 @@
                 startButton.disabled = false;
                 stopButton.disabled = true;
                 micInfoDisplay.textContent = "Mic: Error";
+                dominantFreqDisplay.textContent = "Dominant Freq: --- Hz";
                 return;
             }
             
@@ -232,13 +261,19 @@
 
                 const source = audioContext.createMediaStreamSource(microphoneStream);
                 
+                gainNode = audioContext.createGain();
+                gainNode.gain.value = parseFloat(ampSlider.value); // Set initial gain
+                
                 analyser = audioContext.createAnalyser();
                 analyser.fftSize = FFT_SIZE; 
-                analyser.smoothingTimeConstant = 0.5; // Can adjust smoothing for responsiveness
+                analyser.smoothingTimeConstant = 0.5;
 
-                source.connect(analyser);
+                source.connect(gainNode);
+                gainNode.connect(analyser);
+                // Analyser does not need to connect to destination if only analyzing
                 
                 logMessage(`Analyser FFT size: ${analyser.fftSize}, Freq bin count: ${analyser.frequencyBinCount}`, 'info');
+                logMessage(`Initial amplification: ${gainNode.gain.value.toFixed(1)}x`, 'info');
                 
                 stopButton.disabled = false;
                 chartData = [];
@@ -251,6 +286,7 @@
                 startButton.disabled = false;
                 stopButton.disabled = true;
                 micInfoDisplay.textContent = "Mic: Error";
+                dominantFreqDisplay.textContent = "Dominant Freq: --- Hz";
             }
         }
 
@@ -265,9 +301,17 @@
                 logMessage('Microphone stream stopped.', 'info');
                 microphoneStream = null;
             }
+            // Disconnect nodes before closing context for good measure
+            if (gainNode) gainNode.disconnect();
+            if (analyser && gainNode) analyser.disconnect(); // Analyser was connected to gainNode
+
             if (audioContext && audioContext.state !== 'closed') {
-                audioContext.close().then(() => logMessage('AudioContext closed.', 'info'));
-                audioContext = null;
+                audioContext.close().then(() => {
+                    logMessage('AudioContext closed.', 'info');
+                    audioContext = null; // Clear reference after close
+                    gainNode = null;
+                    analyser = null;
+                });
             }
             
             startButton.disabled = false;
@@ -275,32 +319,48 @@
             chartData = []; 
             drawChart(); 
             micInfoDisplay.textContent = "Mic: (Inactive)";
+            dominantFreqDisplay.textContent = "Dominant Freq: --- Hz";
         }
 
         function processAudio() {
-            if (!analyser) {
-                logMessage('Analyser not ready in processAudio', 'error');
+            if (!analyser || !audioContext) {
+                logMessage('Analyser or AudioContext not ready in processAudio', 'error');
                 stopMonitoring();
                 return;
             }
-            const bufferLength = analyser.frequencyBinCount; // This is fftSize / 2
+            const bufferLength = analyser.frequencyBinCount; 
             const dataArray = new Uint8Array(bufferLength); 
 
-            analyser.getByteFrequencyData(dataArray); // Fills dataArray with frequency data (0-255 per bin)
+            analyser.getByteFrequencyData(dataArray);
 
-            // Calculate overall sound level: average of all frequency bin values
+            // Calculate overall sound level (average of all frequency bin values)
             let sumEnergy = 0;
+            let maxEnergy = 0;
+            let maxEnergyIndex = 0;
+
             for (let i = 0; i < bufferLength; i++) {
                 sumEnergy += dataArray[i];
+                if (dataArray[i] > maxEnergy) {
+                    maxEnergy = dataArray[i];
+                    maxEnergyIndex = i;
+                }
             }
             const overallAverageEnergy = bufferLength > 0 ? sumEnergy / bufferLength : 0;
             
-            // Add to chart data (the average energy, which will be 0-255)
             chartData.push(overallAverageEnergy);
             if (chartData.length > CHART_BUFFER_SIZE) {
                 chartData.shift();
             }
             drawChart();
+
+            // Display dominant frequency
+            if (maxEnergy > MIN_ENERGY_FOR_FREQ_DISPLAY && audioContext) {
+                const nyquist = audioContext.sampleRate / 2;
+                const dominantFrequency = (maxEnergyIndex * nyquist) / bufferLength;
+                dominantFreqDisplay.textContent = `Dominant Freq: ${dominantFrequency.toFixed(0)} Hz (Energy: ${maxEnergy})`;
+            } else {
+                dominantFreqDisplay.textContent = "Dominant Freq: --- Hz";
+            }
             
             animationFrameId = requestAnimationFrame(processAudio);
         }
@@ -319,8 +379,6 @@
             let x = 0;
 
             for (let i = 0; i < chartData.length; i++) {
-                // dataArray values are 0-255. overallAverageEnergy will also be in this range.
-                // Normalize to 0-1 for charting.
                 const v = chartData[i] / 255.0; 
                 const y = canvas.height - (v * canvas.height);
 
@@ -345,13 +403,27 @@
             }
         }
 
+        // Event Listeners
         startButton.addEventListener('click', startMonitoring);
         stopButton.addEventListener('click', stopMonitoring);
         window.addEventListener('resize', resizeCanvas);
 
-        resizeCanvas();
-        logMessage('App ready. Connect Bluetooth headset if desired, then click "Start Monitoring".', 'info');
+        ampSlider.addEventListener('input', (event) => {
+            const newGain = parseFloat(event.target.value);
+            if (gainNode && audioContext && audioContext.state === 'running') {
+                gainNode.gain.setValueAtTime(newGain, audioContext.currentTime);
+                // gainNode.gain.value = newGain; // Direct assignment works too, setValueAtTime is smoother
+            } else if (gainNode) { // If context not running but node exists (e.g. during setup or after stop)
+                gainNode.gain.value = newGain;
+            }
+            ampValueDisplay.textContent = newGain.toFixed(1);
+            logMessage(`Amplification set to ${newGain.toFixed(1)}x`, 'debug');
+        });
 
-    </script>
-</body>
+        // Initial setup
+        resizeCanvas();
+        ampValueDisplay.textContent = parseFloat(ampSlider.value).toFixed(1); // Initialize display
+        logMessage('App ready. Adjust amplification, connect headset, then start monitoring.', 'info');
+
+    </script></body>
 </html>
