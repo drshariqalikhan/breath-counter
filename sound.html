@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Focused Sound Visualizer (Savitzky-Golay)</title>
-    <!-- Savitzky-Golay CDN -->
+    <title>Focused Sound Visualizer (Savitzky-Golay v5)</title>
+    <!-- Updated Savitzky-Golay CDN to v5.0.0 -->
     <script src="https://cdn.jsdelivr.net/npm/ml-savitzky-golay@5.0.0/lib/index.min.js"></script>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 15px; background-color: #f0f0f0; color: #333; display: flex; flex-direction: column; align-items: center; }
@@ -59,9 +59,10 @@
     </div>
 
     <script>
-        // Ensure SavitzkyGolay is available from the CDN
-        // The library exports `SavitzkyGolay` on the window object or as a module
-        const SavitzkyGolay = window.SavitzkyGolay;
+        // The library ml-savitzky-golay, when loaded via CDN UMD,
+        // attaches an object to window.SavitzkyGolay.
+        // This object contains the savitzkyGolay function.
+        const SavitzkyGolayLib = window.SavitzkyGolay;
 
 
         const startButton = document.getElementById('startButton');
@@ -94,15 +95,12 @@
         let selectedMinHz, selectedMaxHz;
         let applySmoothing = false;
 
-        // Savitzky-Golay Filter Parameters (tune these)
-        const SG_WINDOW_H = 2; // Half-window. Full window size = 2*h + 1. E.g., h=2 means window of 5.
-                               // Must be <= polynomial order if derivative > 0. For smoothing (deriv=0), usually h >= poly.
-                               // Must be odd: windowSize = 2*h+1
-        const SG_POLYNOMIAL_ORDER = 2; // Typically 2, 3, or 4 for smoothing.
+        const SG_WINDOW_H = 2; 
+        const SG_POLYNOMIAL_ORDER = 2; 
         const SG_OPTIONS = {
-            derivative: 0, // 0 for smoothing
+            derivative: 0,
             polynomial: SG_POLYNOMIAL_ORDER,
-            pad: 'replicate', // How to handle edges
+            pad: 'replicate',
         };
 
 
@@ -126,8 +124,8 @@
             logMessage('Attempting to start monitoring...');
             startButton.disabled = true;
 
-            if (!SavitzkyGolay) {
-                logMessage('Savitzky-Golay library not loaded!', 'error');
+            if (!SavitzkyGolayLib || typeof SavitzkyGolayLib.savitzkyGolay !== 'function') {
+                logMessage('Savitzky-Golay library not loaded correctly or function not found!', 'error');
                 alert('Error: Smoothing library not available. Check CDN link and internet connection.');
                 startButton.disabled = false;
                 return;
@@ -188,7 +186,7 @@
                 gainNode.gain.value = parseFloat(ampSlider.value);
                 analyser = audioContext.createAnalyser();
                 analyser.fftSize = FFT_SIZE; 
-                analyser.smoothingTimeConstant = 0.0; // Set to 0 if using S-G, minimal built-in smoothing
+                analyser.smoothingTimeConstant = applySmoothing ? 0.0 : 0.3;
                 source.connect(gainNode);
                 gainNode.connect(analyser);
                 logMessage(`Amp: ${gainNode.gain.value.toFixed(1)}x. FFT: ${analyser.fftSize}`, 'info');
@@ -220,7 +218,7 @@
         }
 
         function processAudio() {
-            if (!analyser || !audioContext || !SavitzkyGolay) {
+            if (!analyser || !audioContext || !SavitzkyGolayLib) {
                 logMessage('Dependencies missing in processAudio', 'error'); stopMonitoring(); return;
             }
             const bufferLength = analyser.frequencyBinCount; 
@@ -229,18 +227,13 @@
 
             let processedDataArray = dataArray; 
             if (applySmoothing) {
-                // The ml-savitzky-golay library expects a regular array or Float64Array, not Uint8Array directly.
-                // And it returns a regular array of numbers, which might include negatives or values outside 0-255.
-                // We need to convert and then potentially clamp/normalize back if needed for display.
-                const dataForSG = Array.from(dataArray); // Convert Uint8Array to plain array
+                const dataForSG = Array.from(dataArray);
                 try {
-                    const sgResult = SavitzkyGolay.savitzkyGolay(dataForSG, SG_WINDOW_H, SG_OPTIONS);
-                    // Convert back to Uint8Array, clamping values to 0-255
+                    const sgResult = SavitzkyGolayLib.savitzkyGolay(dataForSG, SG_WINDOW_H, SG_OPTIONS);
                     processedDataArray = new Uint8Array(sgResult.map(val => Math.max(0, Math.min(255, Math.round(val)))));
                 } catch (e) {
                     logMessage(`S-G Filter error: ${e.message}`, 'error');
-                    // Fallback to unsmoothed data if filter fails
-                    processedDataArray = dataArray; 
+                    processedDataArray = dataArray;
                 }
             }
 
@@ -336,12 +329,9 @@
             smoothButton.classList.toggle('active', applySmoothing);
             smoothButton.textContent = `Savitzky-Golay (${applySmoothing ? 'On' : 'Off'})`;
             logMessage(`S-G smoothing ${applySmoothing ? 'ENABLED' : 'DISABLED'}.`, 'info');
-            if (analyser && applySmoothing) {
-                analyser.smoothingTimeConstant = 0.0; // Minimal built-in smoothing
-                logMessage('Analyser smoothingTimeConstant set to 0 for S-G.', 'debug');
-            } else if (analyser) {
-                analyser.smoothingTimeConstant = 0.3; // Restore some default
-                logMessage('Analyser smoothingTimeConstant restored.', 'debug');
+            if (analyser) {
+                analyser.smoothingTimeConstant = applySmoothing ? 0.0 : 0.3;
+                logMessage(`Analyser smoothingTimeConstant set to ${analyser.smoothingTimeConstant}.`, 'debug');
             }
         });
 
@@ -350,8 +340,11 @@
         updateFrequencySelection();
         ampValueDisplay.textContent = parseFloat(ampSlider.value).toFixed(1);
         smoothButton.disabled = true;
-        logMessage('App initialized. Savitzky-Golay library should be loaded.', SavitzkyGolay ? 'info' : 'error');
-
+        if (window.SavitzkyGolay && typeof window.SavitzkyGolay.savitzkyGolay === 'function') {
+             logMessage('Savitzky-Golay library (v5.0.0) loaded successfully.', 'info');
+        } else {
+             logMessage('Savitzky-Golay library FAILED to load or function not found.', 'error');
+        }
     </script>
 </body>
 </html>
