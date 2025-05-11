@@ -3,9 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Focused Sound Visualizer (Savitzky-Golay v5)</title>
-    <!-- Updated Savitzky-Golay CDN to v5.0.0 -->
-    <script src="https://cdn.jsdelivr.net/npm/ml-savitzky-golay@5.0.0/lib/index.min.js"></script>
+    <title>Focused Sound Visualizer (LP Filter)</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 15px; background-color: #f0f0f0; color: #333; display: flex; flex-direction: column; align-items: center; }
         .container { background-color: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); width: 100%; max-width: 400px; box-sizing: border-box; }
@@ -14,9 +12,9 @@
         button:hover:not(:disabled), .toggle-button:hover { background-color: #1558b3; }
         button:disabled { background-color: #ccc; cursor: not-allowed; }
         .toggle-button.active { background-color: #28a745; }
-        .controls { margin-bottom: 10px; text-align: center; }
-        .controls label { display: block; margin-bottom: 2px; font-size: 13px; }
-        .controls input[type="range"] { width: 90%; margin-bottom: 5px; }
+        .controls, .filter-controls { margin-bottom: 10px; text-align: center; padding: 5px; border: 1px solid #eee; border-radius: 4px;}
+        .controls label, .filter-controls label { display: block; margin-bottom: 2px; font-size: 13px; }
+        .controls input[type="range"], .filter-controls input[type="range"] { width: 90%; margin-bottom: 5px; }
         #micInfo, #dominantFreqDisplay { text-align: center; font-size: 11px; color: #555; margin-bottom: 3px; min-height: 1em; }
         #dominantFreqDisplay { font-weight: bold; color: #28a745; }
         canvas { display: block; width: 100%; height: 100px; background-color: #e9e9e9; border-radius: 4px; margin-bottom: 10px; }
@@ -31,16 +29,22 @@
 
         <button id="startButton">Start Monitoring</button>
         <button id="stopButton" disabled>Stop Monitoring</button>
-        <button id="smoothButton" class="toggle-button">Savitzky-Golay (Off)</button>
+        
+        <div class="filter-controls">
+            <button id="filterToggleButton" class="toggle-button">Low-Pass Filter (Off)</button>
+            <label for="filterCutoffSlider">LP Cutoff Freq: <span id="filterCutoffValueDisplay">5000</span> Hz</label>
+            <input type="range" id="filterCutoffSlider" min="100" max="15000" step="100" value="5000" disabled>
+        </div>
+
 
         <div class="controls">
             <label for="ampSlider">Amplification: <span id="ampValueDisplay">1.0</span>x</label>
             <input type="range" id="ampSlider" min="0.1" max="50" step="0.1" value="1.0">
 
-            <label for="minFreqSlider">Min Frequency: <span id="minFreqValueDisplay">100</span> Hz</label>
+            <label for="minFreqSlider">Min Freq (Display): <span id="minFreqValueDisplay">100</span> Hz</label>
             <input type="range" id="minFreqSlider" min="20" max="5000" step="10" value="100">
 
-            <label for="maxFreqSlider">Max Frequency: <span id="maxFreqValueDisplay">5000</span> Hz</label>
+            <label for="maxFreqSlider">Max Freq (Display): <span id="maxFreqValueDisplay">5000</span> Hz</label>
             <input type="range" id="maxFreqSlider" min="100" max="20000" step="100" value="5000">
         </div>
 
@@ -59,15 +63,13 @@
     </div>
 
     <script>
-        // The library ml-savitzky-golay, when loaded via CDN UMD,
-        // attaches an object to window.SavitzkyGolay.
-        // This object contains the savitzkyGolay function.
-        const SavitzkyGolayLib = window.SavitzkyGolay;
-
-
         const startButton = document.getElementById('startButton');
         const stopButton = document.getElementById('stopButton');
-        const smoothButton = document.getElementById('smoothButton');
+        
+        const filterToggleButton = document.getElementById('filterToggleButton');
+        const filterCutoffSlider = document.getElementById('filterCutoffSlider');
+        const filterCutoffValueDisplay = document.getElementById('filterCutoffValueDisplay');
+
         const micInfoDisplay = document.getElementById('micInfo');
         const dominantFreqDisplay = document.getElementById('dominantFreqDisplay');
         
@@ -87,22 +89,15 @@
         let analyser;
         let microphoneStream;
         let gainNode;
+        let biquadFilter; // For the low-pass filter
+        let sourceNode; // To reconnect easily
         let animationFrameId;
         
         const FFT_SIZE = 2048; 
         let MIN_ENERGY_FOR_DOMINANT_FREQ_DISPLAY = 10;
 
         let selectedMinHz, selectedMaxHz;
-        let applySmoothing = false;
-
-        const SG_WINDOW_H = 2; 
-        const SG_POLYNOMIAL_ORDER = 2; 
-        const SG_OPTIONS = {
-            derivative: 0,
-            polynomial: SG_POLYNOMIAL_ORDER,
-            pad: 'replicate',
-        };
-
+        let lowPassFilterEnabled = false;
 
         const MAX_LOGS = 50;
         const CHART_BUFFER_SIZE = 100;
@@ -120,23 +115,36 @@
             logsContainer.scrollTop = logsContainer.scrollHeight;
         }
         
+        function setupAudioNodes() {
+            if (!audioContext || !sourceNode || !gainNode || !analyser) return;
+
+            // Disconnect existing paths to be safe
+            sourceNode.disconnect();
+            if (biquadFilter) biquadFilter.disconnect();
+            gainNode.disconnect();
+
+            if (lowPassFilterEnabled && biquadFilter) {
+                sourceNode.connect(gainNode);
+                gainNode.connect(biquadFilter);
+                biquadFilter.connect(analyser);
+                logMessage(`Audio Path: Source -> Gain -> BiquadLPF -> Analyser`, 'debug');
+            } else {
+                sourceNode.connect(gainNode);
+                gainNode.connect(analyser);
+                logMessage(`Audio Path: Source -> Gain -> Analyser`, 'debug');
+            }
+        }
+
+
         async function startMonitoring() {
             logMessage('Attempting to start monitoring...');
             startButton.disabled = true;
-
-            if (!SavitzkyGolayLib || typeof SavitzkyGolayLib.savitzkyGolay !== 'function') {
-                logMessage('Savitzky-Golay library not loaded correctly or function not found!', 'error');
-                alert('Error: Smoothing library not available. Check CDN link and internet connection.');
-                startButton.disabled = false;
-                return;
-            }
             
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
                 logMessage('getUserMedia not supported!', 'error'); alert('Mic access not supported.');
                 startButton.disabled = false; return;
             }
-            // ... (Microphone selection logic - same as before) ...
-             let initialStream;
+            let initialStream;
             try {
                 initialStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
                 logMessage('Initial mic access granted.', 'info');
@@ -149,7 +157,6 @@
             try {
                 const devices = await navigator.mediaDevices.enumerateDevices();
                 const audioInputDevices = devices.filter(d => d.kind === 'audioinput');
-                logMessage(`Found ${audioInputDevices.length} audio inputs.`, 'debug');
                 if (audioInputDevices.length > 0) {
                     let potentialBluetooth = audioInputDevices.find(d => /bluetooth|headset|airpods/i.test(d.label) && !/iphone microphone|built-in/i.test(d.label));
                     if (!potentialBluetooth && audioInputDevices.length > 1) {
@@ -158,9 +165,7 @@
                     if (potentialBluetooth) {
                         selectedDeviceId = potentialBluetooth.deviceId;
                         selectedDeviceLabel = potentialBluetooth.label || "Selected External";
-                        logMessage(`Targeting: ${selectedDeviceLabel}`, 'info');
                     } else {
-                        logMessage('Using system default mic.', 'warn');
                         if (initialStream.getAudioTracks()[0].label) selectedDeviceLabel = initialStream.getAudioTracks()[0].label;
                     }
                 }
@@ -181,23 +186,35 @@
             try {
                 audioContext = new (window.AudioContext || window.webkitAudioContext)();
                 logMessage(`AudioContext: ${audioContext.sampleRate} Hz`, 'info');
-                const source = audioContext.createMediaStreamSource(microphoneStream);
+                
+                sourceNode = audioContext.createMediaStreamSource(microphoneStream);
                 gainNode = audioContext.createGain();
                 gainNode.gain.value = parseFloat(ampSlider.value);
+                
+                biquadFilter = audioContext.createBiquadFilter();
+                biquadFilter.type = 'lowpass';
+                biquadFilter.frequency.setValueAtTime(parseFloat(filterCutoffSlider.value), audioContext.currentTime);
+                biquadFilter.Q.setValueAtTime(1, audioContext.currentTime); // Butterworth-like Q for LPF/HPF is 1/sqrt(2) ~ 0.707. Q=1 is a common default.
+
                 analyser = audioContext.createAnalyser();
                 analyser.fftSize = FFT_SIZE; 
-                analyser.smoothingTimeConstant = applySmoothing ? 0.0 : 0.3;
-                source.connect(gainNode);
-                gainNode.connect(analyser);
+                analyser.smoothingTimeConstant = 0.3; // Restore some default smoothing
+
+                setupAudioNodes(); // Connect nodes based on filter state
+
                 logMessage(`Amp: ${gainNode.gain.value.toFixed(1)}x. FFT: ${analyser.fftSize}`, 'info');
+                if(lowPassFilterEnabled) logMessage(`LPF ON, Cutoff: ${biquadFilter.frequency.value} Hz`, 'info');
+
                 stopButton.disabled = false;
-                smoothButton.disabled = false;
+                filterToggleButton.disabled = false;
+                filterCutoffSlider.disabled = !lowPassFilterEnabled;
+
                 chartData = [];
                 processAudio();
             } catch (err) {
                 logMessage(`Audio setup error: ${err.message}`, 'error');
                 if (microphoneStream) microphoneStream.getTracks().forEach(t => t.stop());
-                startButton.disabled = false; stopButton.disabled = true; smoothButton.disabled = true;
+                startButton.disabled = false; stopButton.disabled = true; filterToggleButton.disabled = true; filterCutoffSlider.disabled = true;
                 micInfoDisplay.textContent = "Mic: Error"; dominantFreqDisplay.textContent = "Dominant Freq: --- Hz";
             }
         }
@@ -205,37 +222,37 @@
         function stopMonitoring() {
             logMessage('Stopping monitoring...');
             if (animationFrameId) cancelAnimationFrame(animationFrameId); animationFrameId = null;
-            if (microphoneStream) microphoneStream.getTracks().forEach(t => t.stop()); microphoneStream = null;
+            
+            if (sourceNode) sourceNode.disconnect(); // Disconnect source first
             if (gainNode) gainNode.disconnect();
+            if (biquadFilter) biquadFilter.disconnect();
+            // Analyser doesn't need explicit disconnect if its inputs are disconnected.
+
+            if (microphoneStream) microphoneStream.getTracks().forEach(t => t.stop()); microphoneStream = null;
+            
             if (audioContext && audioContext.state !== 'closed') {
                 audioContext.close().then(() => logMessage('AudioContext closed.', 'info'));
             }
-            audioContext = null; gainNode = null; analyser = null;
-            startButton.disabled = false; stopButton.disabled = true; smoothButton.disabled = true;
+            audioContext = null; sourceNode = null; gainNode = null; biquadFilter = null; analyser = null;
+            
+            startButton.disabled = false; stopButton.disabled = true; 
+            filterToggleButton.disabled = true; filterCutoffSlider.disabled = true;
+            
             chartData = []; drawChart(); 
             micInfoDisplay.textContent = "Mic: (Inactive)";
             dominantFreqDisplay.textContent = "Dominant Freq (in range): --- Hz";
         }
 
         function processAudio() {
-            if (!analyser || !audioContext || !SavitzkyGolayLib) {
-                logMessage('Dependencies missing in processAudio', 'error'); stopMonitoring(); return;
+            if (!analyser || !audioContext ) {
+                logMessage('Analyser/AudioContext gone', 'error'); stopMonitoring(); return;
             }
             const bufferLength = analyser.frequencyBinCount; 
             let dataArray = new Uint8Array(bufferLength); 
             analyser.getByteFrequencyData(dataArray);
 
+            // dataArray now reflects the audio signal AFTER the gain and potential low-pass filter
             let processedDataArray = dataArray; 
-            if (applySmoothing) {
-                const dataForSG = Array.from(dataArray);
-                try {
-                    const sgResult = SavitzkyGolayLib.savitzkyGolay(dataForSG, SG_WINDOW_H, SG_OPTIONS);
-                    processedDataArray = new Uint8Array(sgResult.map(val => Math.max(0, Math.min(255, Math.round(val)))));
-                } catch (e) {
-                    logMessage(`S-G Filter error: ${e.message}`, 'error');
-                    processedDataArray = dataArray;
-                }
-            }
 
             let sumOverallEnergy = 0;
             for (let i = 0; i < bufferLength; i++) {
@@ -317,34 +334,45 @@
 
         ampSlider.addEventListener('input', (event) => {
             const newGain = parseFloat(event.target.value);
-            if (gainNode) gainNode.gain.value = newGain;
+            if (gainNode && audioContext) gainNode.gain.setValueAtTime(newGain, audioContext.currentTime);
             ampValueDisplay.textContent = newGain.toFixed(1);
         });
 
         minFreqSlider.addEventListener('input', updateFrequencySelection);
         maxFreqSlider.addEventListener('input', updateFrequencySelection);
 
-        smoothButton.addEventListener('click', () => {
-            applySmoothing = !applySmoothing;
-            smoothButton.classList.toggle('active', applySmoothing);
-            smoothButton.textContent = `Savitzky-Golay (${applySmoothing ? 'On' : 'Off'})`;
-            logMessage(`S-G smoothing ${applySmoothing ? 'ENABLED' : 'DISABLED'}.`, 'info');
-            if (analyser) {
-                analyser.smoothingTimeConstant = applySmoothing ? 0.0 : 0.3;
-                logMessage(`Analyser smoothingTimeConstant set to ${analyser.smoothingTimeConstant}.`, 'debug');
+        filterToggleButton.addEventListener('click', () => {
+            lowPassFilterEnabled = !lowPassFilterEnabled;
+            filterToggleButton.classList.toggle('active', lowPassFilterEnabled);
+            filterToggleButton.textContent = `Low-Pass Filter (${lowPassFilterEnabled ? 'On' : 'Off'})`;
+            filterCutoffSlider.disabled = !lowPassFilterEnabled;
+            
+            if(audioContext) { // Re-route audio if context exists
+                setupAudioNodes();
+                if(lowPassFilterEnabled && biquadFilter) {
+                    logMessage(`LPF ON. Cutoff: ${biquadFilter.frequency.value} Hz`, 'info');
+                } else {
+                     logMessage(`LPF OFF.`, 'info');
+                }
             }
+        });
+
+        filterCutoffSlider.addEventListener('input', (event) => {
+            const cutoff = parseFloat(event.target.value);
+            if (biquadFilter && audioContext) {
+                biquadFilter.frequency.setValueAtTime(cutoff, audioContext.currentTime);
+            }
+            filterCutoffValueDisplay.textContent = cutoff;
         });
 
         // Initial setup
         resizeCanvas();
         updateFrequencySelection();
         ampValueDisplay.textContent = parseFloat(ampSlider.value).toFixed(1);
-        smoothButton.disabled = true;
-        if (window.SavitzkyGolay && typeof window.SavitzkyGolay.savitzkyGolay === 'function') {
-             logMessage('Savitzky-Golay library (v5.0.0) loaded successfully.', 'info');
-        } else {
-             logMessage('Savitzky-Golay library FAILED to load or function not found.', 'error');
-        }
+        filterCutoffValueDisplay.textContent = parseFloat(filterCutoffSlider.value);
+        filterToggleButton.disabled = true;
+        logMessage('App initialized. Web Audio Low-Pass filter available.', 'info');
+
     </script>
 </body>
 </html>
